@@ -2,6 +2,8 @@
 
 require "spec_helper"
 require "form_stencil/schema"
+require "tmpdir"
+require "yaml"
 
 RSpec.describe FormStencil::Schema do
   describe ".normalize" do
@@ -34,6 +36,48 @@ RSpec.describe FormStencil::Schema do
 
     it "returns an empty hash for an empty input" do
       expect(described_class.normalize({})).to eq({})
+    end
+  end
+
+  describe ".load and .dump" do
+    around do |example|
+      Dir.mktmpdir do |tmp|
+        @tmp = tmp
+        example.run
+      end
+    end
+
+    let(:schema) do
+      {
+        full_name: {type: :string, variations: ["First Name", "Surname"]},
+        gender: {type: :select, variations: ["Gender"], options: [:male, :female]}
+      }
+    end
+
+    it "round-trips through YAML" do
+      path = File.join(@tmp, "schema.yml")
+      described_class.dump(schema, path)
+      reloaded = described_class.load(path)
+      expect(reloaded).to eq(schema)
+    end
+
+    it "round-trips through JSON" do
+      path = File.join(@tmp, "schema.json")
+      described_class.dump(schema, path)
+      reloaded = described_class.load(path)
+      expect(reloaded).to eq(schema)
+    end
+
+    it "raises on unknown extension" do
+      path = File.join(@tmp, "schema.txt")
+      expect { described_class.dump(schema, path) }.to raise_error(ArgumentError, /extension/)
+    end
+
+    it "load returns a normalized rich-form hash even if the file is legacy form" do
+      path = File.join(@tmp, "legacy.yml")
+      File.write(path, YAML.dump(full_name: ["First Name"]))
+      result = described_class.load(path)
+      expect(result[:full_name]).to eq(type: :string, variations: ["First Name"])
     end
   end
 end
