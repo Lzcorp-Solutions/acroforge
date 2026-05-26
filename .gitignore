@@ -10,6 +10,9 @@
 # rspec failure tracking
 .rspec_status
 
+# Built gem artifacts
+*.gem
+
 # VitePress
 docs/node_modules/
 docs/.vitepress/dist/

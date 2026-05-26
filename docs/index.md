@@ -1,6 +1,6 @@
 ---
 layout: home
-title: AcroForge: AcroForms, forged clean.
+title: "AcroForge: AcroForms, forged clean."
 titleTemplate: false
 ---
 

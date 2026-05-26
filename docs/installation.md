@@ -5,90 +5,99 @@
 - Ruby `>= 2.7`
 - [HexaPDF](https://hexapdf.gettalong.org/) `~> 1.0` (runtime dependency, installed automatically)
 
-## Installing AcroForge
+If you don't already have a Ruby version manager, [mise](https://mise.jdx.dev/) is a good default. It manages Ruby alongside Node, Python, and other runtimes:
 
-AcroForge v0.1.0 is not yet published to rubygems.org. Until a stable release lands on the gem index, you must depend on it via a local path or a git URL. Once it is published, a standard `gem install acroforge` or Gemfile entry will work like any other gem.
+```bash
+mise use --global ruby@3.3
+```
 
-### Via Gemfile (recommended)
+## Install AcroForge
 
-Add one of the following to your `Gemfile`:
+```bash
+gem install acroforge
+```
+
+That's it. The `acroforge` command is now on your `PATH` and runnable from any directory:
+
+```bash
+acroforge version
+# 0.1.0
+
+acroforge help
+```
+
+This is the same mechanism Rails uses. `gem install` writes the executable into your Ruby environment's binary directory, and mise (or rbenv, asdf, rvm) keeps that directory on `PATH` through its shim layer. No manual setup, no shell config changes.
+
+## Embedding AcroForge in a Ruby project
+
+If you want AcroForge as a **library inside another Ruby application** (not as a global CLI), add it to your `Gemfile`:
 
 ```ruby
-# Local path: useful when developing against the gem itself
-gem "acroforge", path: "/path/to/acroforge"
-
-# Git URL: pin to a tag or commit for reproducibility
-gem "acroforge", git: "https://github.com/Lzcorp-Solutions/acroforge.git"
-gem "acroforge", git: "https://github.com/Lzcorp-Solutions/acroforge.git", tag: "v0.1.0"
+gem "acroforge"
 ```
 
-Then run:
+Then `bundle install`. Inside that project, call the library API directly:
 
-```bash
-bundle install
+```ruby
+require "acroforge"
+AcroForge::Engine.new("form.pdf", schema: ...).fill!(payload, "out.pdf")
 ```
 
-### Verifying the install
+The CLI is still reachable via `bundle exec acroforge` inside the project. Using `gem install` globally and using a Gemfile dependency in a project are not mutually exclusive: do both if you need both.
 
-After `bundle install`, confirm the CLI works inside the bundler context:
+## Install from source
 
-```bash
-bundle exec acroforge version
-# => 0.1.0
-```
-
-## Making `acroforge` available globally
-
-Bundler's `path:` and `git:` dependencies only expose the CLI through `bundle exec` from inside a project's Gemfile. To run `acroforge` as a plain command from any directory, like a normal Unix tool, install the gem into your Ruby environment.
-
-### From a clone of the repo (recommended for now)
+If you want to work *on* AcroForge (contributing, hacking, testing unreleased changes), clone the repo and install your local build:
 
 ```bash
-git clone https://github.com/Lzcorp-Solutions/acroforge.git ~/acroforge
-cd ~/acroforge
+git clone https://github.com/Lzcorp-Solutions/acroforge.git
+cd acroforge
 bundle install
 rake install
 ```
 
-`rake install` (provided by Bundler's gem tasks) builds the gem and runs `gem install acroforge-0.1.0.gem` for you. After this, your Ruby version manager (rbenv, asdf, rvm, or chruby) places the binary on your `PATH` via its standard shim or gemset bin directory.
+`rake install` builds the gem from your working tree and installs it the same way `gem install acroforge` would. To pick up changes after `git pull` or local edits, re-run `rake install`. With mise, run `mise reshim` if the shim doesn't pick up the new binary immediately.
 
-Verify:
+## Troubleshooting
+
+### `acroforge: command not found` after `gem install`
+
+Your Ruby environment's executable directory is missing from `PATH`. This rarely happens with a version manager but is common with system Ruby. Find the directory:
+
+```bash
+gem environment | grep -i 'executable directory'
+# EXECUTABLE DIRECTORY: /home/you/.local/share/mise/installs/ruby/3.3.0/bin
+```
+
+If you use mise and the binary exists in mise's installs path but isn't on your `PATH`, re-shim:
+
+```bash
+mise reshim
+```
+
+For other setups, add the bin directory to your shell rc:
+
+```bash
+# Bash
+echo 'export PATH="$(gem env home)/bin:$PATH"' >> ~/.bashrc
+
+# Zsh
+echo 'export PATH="$(gem env home)/bin:$PATH"' >> ~/.zshrc
+
+# Fish
+fish_add_path (gem env home)/bin
+```
+
+Restart your shell or source the rc file, then `acroforge version` should resolve.
+
+### Verifying the install
 
 ```bash
 which acroforge
-# /home/you/.rbenv/shims/acroforge   (or equivalent)
+# /home/you/.local/share/mise/shims/acroforge   (mise)
+# /home/you/.rbenv/shims/acroforge              (rbenv)
+# /home/you/.asdf/shims/acroforge               (asdf)
 
 acroforge version
 # 0.1.0
 ```
-
-### After future updates
-
-Pull the latest code and re-run `rake install`:
-
-```bash
-cd ~/acroforge
-git pull
-rake install
-```
-
-### Once published to rubygems.org
-
-The above ceremony goes away. A single `gem install acroforge` will fetch from the index and put `acroforge` on your `PATH`.
-
-### If your shell still can't find `acroforge`
-
-Your Ruby environment's bin directory isn't on `PATH`. Find it with:
-
-```bash
-gem environment | grep -i 'executable directory'
-# EXECUTABLE DIRECTORY: /home/you/.gem/ruby/3.3.0/bin   (example)
-```
-
-Add that path to your shell rc:
-
-```bash
-echo 'export PATH="$(gem env | sed -n "/EXECUTABLE DIRECTORY/s/.*: //p"):$PATH"' >> ~/.bashrc
-```
-
-(Adjust for `~/.zshrc` or `~/.config/fish/config.fish` accordingly.)

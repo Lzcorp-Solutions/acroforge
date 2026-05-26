@@ -1,0 +1,741 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..800,0..100,0..1;1,9..144,300..800,0..100,0..1&family=Schibsted+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap");
+
+:root {
+  /* AcroForge palette — warm, restrained */
+  --af-bg: #fafaf7;
+  --af-bg-2: #f1ede4;
+  --af-dark: #18120c;
+  --af-dark-2: #221a12;
+  --af-text: #14110d;
+  --af-text-2: #6e6760;
+  --af-text-3: #9c958c;
+  --af-border: #e6e1d6;
+  --af-border-strong: #cfc8b9;
+  --af-border-dark: #2a2218;
+  --af-accent: #c2410c;
+  --af-accent-soft: rgba(194, 65, 12, 0.1);
+  --af-on-dark: #f6f1e6;
+  --af-on-dark-2: #b6ad9d;
+  --af-on-dark-3: #7a7164;
+
+  /* Type system */
+  --af-font-display: "Fraunces", "Times New Roman", Georgia, serif;
+  --af-font-body: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --af-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* VitePress overrides */
+  --vp-c-brand-1: #c2410c;
+  --vp-c-brand-2: #9a3412;
+  --vp-c-brand-3: #7c2d12;
+  --vp-c-brand-soft: var(--af-accent-soft);
+  --vp-button-brand-bg: #c2410c;
+  --vp-button-brand-hover-bg: #9a3412;
+  --vp-button-brand-active-bg: #7c2d12;
+  --vp-button-brand-border: #c2410c;
+  --vp-font-family-base: "Schibsted Grotesk", sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", monospace;
+  --vp-c-bg: #fafaf7;
+  --vp-c-bg-soft: #f1ede4;
+  --vp-c-bg-alt: #f5f1e7;
+  --vp-c-divider: #e6e1d6;
+}
+
+.dark {
+  --vp-c-brand-1: #fb923c;
+  --vp-c-brand-2: #f97316;
+  --vp-c-brand-3: #ea580c;
+  --vp-c-bg: #14110d;
+  --vp-c-bg-soft: #1c1813;
+  --vp-c-bg-alt: #1c1813;
+}
+
+html { background: var(--af-bg); }
+.dark html { background: var(--vp-c-bg); }
+body { font-family: var(--af-font-body); }
+
+/* ============================================================== */
+/* Section primitives                                             */
+/* ============================================================== */
+
+.af-section {
+  width: 100%;
+  padding: 8rem 2rem;
+  box-sizing: border-box;
+}
+
+.af-section--dark {
+  background: var(--af-dark);
+  color: var(--af-on-dark);
+}
+
+.af-section--band {
+  background: var(--af-bg-2);
+  border-top: 1px solid var(--af-border);
+  border-bottom: 1px solid var(--af-border);
+}
+
+.dark .af-section--band {
+  background: var(--vp-c-bg-alt);
+  border-color: var(--vp-c-divider);
+}
+
+.af-section-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* Section eyebrow — manual-style "01 — Pipeline" markers */
+.af-section-num {
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--af-text-3);
+  margin-bottom: 1.75rem;
+  text-transform: none;
+}
+
+.dark .af-section-num,
+.af-section--dark .af-section-num {
+  color: var(--af-on-dark-3);
+}
+
+.af-section-title {
+  font-family: var(--af-font-display);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 400;
+  font-variation-settings: "opsz" 96, "SOFT" 40, "WONK" 0;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  color: var(--af-text);
+  margin: 0 0 1rem;
+  max-width: 38rem;
+}
+
+.dark .af-section-title,
+.af-section--dark .af-section-title {
+  color: var(--af-on-dark);
+}
+
+.af-section-title em {
+  font-style: italic;
+  font-variation-settings: "opsz" 96, "SOFT" 80, "WONK" 1;
+  color: var(--af-accent);
+  font-weight: 400;
+}
+
+.af-section-sub {
+  font-family: var(--af-font-body);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--af-text-2);
+  margin: 0 0 4rem;
+  max-width: 38rem;
+  font-weight: 400;
+}
+
+.dark .af-section-sub,
+.af-section--dark .af-section-sub {
+  color: var(--af-on-dark-2);
+}
+
+.af-section-sub code {
+  font-family: var(--af-font-mono);
+  font-size: 0.92em;
+  color: var(--af-accent);
+  background: none;
+  padding: 0;
+}
+
+/* ============================================================== */
+/* Hero                                                           */
+/* ============================================================== */
+
+.af-hero {
+  padding: 10rem 2rem 9rem;
+}
+
+.af-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 5rem;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .af-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 4rem;
+  }
+}
+
+.af-eyebrow {
+  font-family: var(--af-font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--af-on-dark-2);
+  margin-bottom: 2.5rem;
+}
+
+.af-eyebrow .sep {
+  margin: 0 0.55rem;
+  color: var(--af-on-dark-3);
+}
+
+.af-eyebrow .em {
+  color: var(--af-on-dark);
+}
+
+.af-headline {
+  font-family: var(--af-font-display);
+  font-size: clamp(2.75rem, 7vw, 5.5rem);
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "SOFT" 60, "WONK" 0;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--af-on-dark);
+  margin: 0 0 1.75rem;
+}
+
+.af-headline em {
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  color: var(--af-accent);
+  font-weight: 400;
+}
+
+.af-lede {
+  font-family: var(--af-font-body);
+  font-size: 1.2rem;
+  line-height: 1.55;
+  color: var(--af-on-dark-2);
+  margin: 0 0 3rem;
+  max-width: 30rem;
+  font-weight: 400;
+}
+
+.af-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* ============================================================== */
+/* Buttons — flat, restrained                                     */
+/* ============================================================== */
+
+a.af-btn,
+.af-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1.4rem;
+  font-family: var(--af-font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 2px;
+  text-decoration: none !important;
+  border: 1px solid transparent;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.af-btn-primary {
+  background: var(--af-accent);
+  color: var(--af-on-dark) !important;
+  border-color: var(--af-accent);
+}
+
+.af-btn-primary:hover {
+  background: #9a3412;
+  border-color: #9a3412;
+}
+
+.af-btn-ghost {
+  background: transparent;
+  color: var(--af-on-dark) !important;
+  border-color: var(--af-border-dark);
+}
+
+.af-btn-ghost:hover {
+  border-color: var(--af-on-dark-2);
+  color: var(--af-on-dark) !important;
+}
+
+.af-btn-dark {
+  background: var(--af-dark);
+  color: var(--af-on-dark) !important;
+  border-color: var(--af-dark);
+}
+
+.af-btn-dark:hover {
+  background: var(--af-dark-2);
+  border-color: var(--af-dark-2);
+}
+
+.af-btn-light {
+  background: transparent;
+  color: var(--af-text) !important;
+  border-color: var(--af-border-strong);
+}
+
+.dark .af-btn-light {
+  color: var(--af-on-dark) !important;
+  border-color: var(--af-border-dark);
+}
+
+.af-btn-light:hover {
+  border-color: var(--af-text);
+  color: var(--af-text) !important;
+}
+
+.dark .af-btn-light:hover {
+  border-color: var(--af-on-dark-2);
+  color: var(--af-on-dark) !important;
+}
+
+/* ============================================================== */
+/* Terminal — flat, no chrome                                     */
+/* ============================================================== */
+
+.af-term {
+  background: #0d0a06;
+  border: 1px solid var(--af-border-dark);
+  border-radius: 2px;
+  font-family: var(--af-font-mono);
+  font-size: 0.86rem;
+  line-height: 1.85;
+  color: var(--af-on-dark);
+  padding: 1.75rem 2rem;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.af-term .prompt {
+  color: var(--af-accent);
+  font-weight: 500;
+  user-select: none;
+  margin-right: 0.5em;
+}
+
+.af-term .dim { color: var(--af-on-dark-3); }
+.af-term .ok { color: var(--af-on-dark); }
+
+.af-term .cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--af-on-dark);
+  animation: af-blink 1.1s steps(1, end) infinite;
+}
+
+@keyframes af-blink {
+  50% { opacity: 0; }
+}
+
+/* ============================================================== */
+/* Pipeline                                                       */
+/* ============================================================== */
+
+.af-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3.5rem 3rem;
+}
+
+@media (max-width: 980px) {
+  .af-pipeline { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 520px) {
+  .af-pipeline { grid-template-columns: 1fr; }
+}
+
+.af-step {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--af-border-strong);
+}
+
+.dark .af-step { border-color: var(--vp-c-divider); }
+
+.af-step-num {
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--af-accent);
+  letter-spacing: 0.04em;
+  margin-bottom: 1rem;
+}
+
+.af-step-name {
+  font-family: var(--af-font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  font-variation-settings: "opsz" 36, "SOFT" 50, "WONK" 0;
+  line-height: 1.1;
+  letter-spacing: -0.022em;
+  margin: 0 0 0.6rem;
+  color: var(--af-text);
+}
+
+.dark .af-step-name { color: var(--vp-c-text-1); }
+
+.af-step-cmd {
+  display: block;
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  color: var(--af-text-3);
+  margin-bottom: 0.85rem;
+}
+
+.dark .af-step-cmd { color: var(--af-on-dark-3); }
+
+.af-step-desc {
+  font-family: var(--af-font-body);
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--af-text-2);
+  margin: 0;
+}
+
+.dark .af-step-desc { color: var(--af-on-dark-2); }
+
+/* ============================================================== */
+/* Comparison                                                     */
+/* ============================================================== */
+
+.af-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+}
+
+@media (max-width: 880px) {
+  .af-compare { grid-template-columns: 1fr; }
+}
+
+.af-compare-card {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--af-border-strong);
+}
+
+.dark .af-compare-card { border-color: var(--vp-c-divider); }
+
+.af-compare-label {
+  display: block;
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--af-text-3);
+  margin-bottom: 1.25rem;
+}
+
+.dark .af-compare-label { color: var(--af-on-dark-3); }
+
+.af-compare-label--good { color: var(--af-accent); }
+.dark .af-compare-label--good { color: var(--af-accent); }
+
+.af-compare-card pre {
+  margin: 0;
+  background: #0d0a06;
+  color: var(--af-on-dark);
+  font-family: var(--af-font-mono);
+  font-size: 0.86rem;
+  line-height: 1.85;
+  padding: 1.75rem 2rem;
+  border-radius: 2px;
+  border: 1px solid var(--af-border-dark);
+  overflow-x: auto;
+}
+
+.af-compare-card pre .prompt { color: var(--af-accent); font-weight: 500; }
+.af-compare-card pre .dim { color: var(--af-on-dark-3); }
+.af-compare-card pre .ok { color: var(--af-on-dark); }
+
+/* ============================================================== */
+/* Features (three, max)                                          */
+/* ============================================================== */
+
+.af-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3.5rem 3rem;
+}
+
+@media (max-width: 880px) {
+  .af-features { grid-template-columns: 1fr; }
+}
+
+.af-feature {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--af-border-strong);
+}
+
+.dark .af-feature { border-color: var(--vp-c-divider); }
+
+.af-feature-num {
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--af-text-3);
+  letter-spacing: 0.04em;
+  margin-bottom: 1rem;
+}
+
+.dark .af-feature-num { color: var(--af-on-dark-3); }
+
+.af-feature-name {
+  font-family: var(--af-font-display);
+  font-size: 1.4rem;
+  font-weight: 400;
+  font-variation-settings: "opsz" 36, "SOFT" 50, "WONK" 0;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  color: var(--af-text);
+}
+
+.dark .af-feature-name { color: var(--vp-c-text-1); }
+
+.af-feature-desc {
+  font-family: var(--af-font-body);
+  font-size: 0.96rem;
+  line-height: 1.6;
+  color: var(--af-text-2);
+  margin: 0;
+}
+
+.dark .af-feature-desc { color: var(--af-on-dark-2); }
+
+.af-feature-desc code {
+  font-family: var(--af-font-mono);
+  font-size: 0.88em;
+  color: var(--af-accent);
+  padding: 0;
+  background: none;
+}
+
+/* ============================================================== */
+/* Two-column code samples                                        */
+/* ============================================================== */
+
+.af-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+}
+
+@media (max-width: 880px) {
+  .af-two-col { grid-template-columns: 1fr; }
+}
+
+.af-two-col-card {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--af-border-strong);
+}
+
+.dark .af-two-col-card { border-color: var(--vp-c-divider); }
+
+.af-two-col-card h3 {
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--af-text-3);
+  letter-spacing: 0.04em;
+  margin: 0 0 1.25rem;
+}
+
+.dark .af-two-col-card h3 { color: var(--af-on-dark-3); }
+
+.af-two-col-card .af-btn {
+  margin-top: 0.5rem;
+}
+
+/* ============================================================== */
+/* Final CTA — left-aligned, magazine-style                       */
+/* ============================================================== */
+
+.af-cta {
+  padding: 9rem 2rem 7rem;
+  border-top: 1px solid var(--af-border);
+}
+
+.dark .af-cta { border-color: var(--vp-c-divider); }
+
+.af-cta h2 {
+  font-family: var(--af-font-display);
+  font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "SOFT" 60, "WONK" 0;
+  line-height: 1.0;
+  letter-spacing: -0.035em;
+  margin: 0 0 1.75rem;
+  color: var(--af-text);
+  max-width: 30rem;
+}
+
+.dark .af-cta h2 { color: var(--vp-c-text-1); }
+
+.af-cta h2 em {
+  font-family: var(--af-font-mono);
+  font-style: normal;
+  font-size: 0.65em;
+  vertical-align: 0.12em;
+  color: var(--af-accent);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.af-cta p {
+  font-family: var(--af-font-body);
+  color: var(--af-text-2);
+  font-size: 1.1rem;
+  line-height: 1.55;
+  margin: 0 0 2.5rem;
+  max-width: 30rem;
+}
+
+.dark .af-cta p { color: var(--af-on-dark-2); }
+
+.af-cta-meta {
+  margin-top: 5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--af-border);
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+  color: var(--af-text-3);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.dark .af-cta-meta {
+  border-color: var(--vp-c-divider);
+  color: var(--af-on-dark-3);
+}
+
+.af-cta-meta a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  transition: color 100ms ease;
+}
+
+.af-cta-meta a:hover { color: var(--af-accent); }
+
+/* ============================================================== */
+/* Markdown code blocks inside cards — dark aesthetic + readable  */
+/* ============================================================== */
+
+.af-two-col-card div[class*="language-"] {
+  margin: 0 0 1.5rem;
+  background: #0d0a06 !important;
+  border: 1px solid var(--af-border-dark);
+  border-radius: 2px;
+  position: relative;
+}
+
+.af-two-col-card div[class*="language-"] pre {
+  background: transparent !important;
+  padding: 1.5rem 1.75rem !important;
+  font-size: 0.85rem;
+  line-height: 1.85;
+  margin: 0 !important;
+}
+
+.af-two-col-card div[class*="language-"] code,
+.af-two-col-card div[class*="language-"] pre code {
+  font-family: var(--af-font-mono) !important;
+  background: transparent !important;
+  color: var(--af-on-dark);
+}
+
+/* Force Shiki to use its *dark* theme colors in these blocks regardless
+   of the page's light/dark mode. Shiki emits per-token --shiki-light and
+   --shiki-dark inline style vars; the default rule paints with --shiki-light
+   in light mode. We override to always use --shiki-dark. */
+.af-two-col-card div[class*="language-"] .shiki span,
+.af-two-col-card div[class*="language-"] code span {
+  color: var(--shiki-dark) !important;
+  background-color: transparent !important;
+}
+
+/* Hide the language label that VitePress sticks in the corner — visual noise */
+.af-two-col-card div[class*="language-"]::before {
+  display: none !important;
+}
+.af-two-col-card div[class*="language-"] .lang {
+  display: none !important;
+}
+
+/* Also hide VitePress's copy button on these blocks for cleanliness;
+   re-enable on hover if you want via .copy:hover { display: block } */
+.af-two-col-card div[class*="language-"] .copy {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.af-two-col-card div[class*="language-"]:hover .copy {
+  opacity: 1;
+}
+
+/* ============================================================== */
+/* VitePress nav + footer — tone-match the brand                  */
+/* ============================================================== */
+
+/* ============================================================== */
+/* Home page only — stretch sections edge-to-edge                 */
+/* Doc pages MUST keep their VitePress padding + sidebar layout   */
+/* ============================================================== */
+
+/* Hide the default VitePress hero/features blocks on the home page */
+.VPHome .VPHero,
+.VPHome .VPFeatures {
+  display: none !important;
+}
+
+/* Remove home-page-only chrome that constrains our sections */
+.VPHome {
+  padding: 0 !important;
+}
+.VPHome .container,
+.VPHome > .container {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Defeat VitePress's outer content padding ONLY when rendering the home page.
+   .Layout.home is set by VitePress's <Layout> component when the frontmatter
+   layout is "home"; this lets us scope the override correctly without
+   affecting doc pages with a sidebar. */
+.Layout.home .VPContent,
+.Layout.home main.main {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+
+.VPNav {
+  font-family: var(--af-font-body);
+}
+
+.VPNavBarTitle .title {
+  font-family: var(--af-font-display) !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 36, "SOFT" 50;
+  font-size: 1.25rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.VPFooter {
+  border-top: 1px solid var(--af-border);
+  font-family: var(--af-font-mono);
+  font-size: 0.78rem;
+}
+
+.dark .VPFooter { border-color: var(--vp-c-divider); }

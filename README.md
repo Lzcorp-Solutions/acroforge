@@ -13,17 +13,19 @@ It works on any AcroForm PDF: loan applications, school admission forms, governm
 
 ## Installation
 
-Until AcroForge is published to rubygems.org, depend on it via a local path or git URL.
-
-In your `Gemfile`:
-
-```ruby
-gem "acroforge", path: "/path/to/acroforge"
-# or
-gem "acroforge", git: "https://github.com/Lzcorp-Solutions/acroforge.git"
+```bash
+gem install acroforge
 ```
 
-Then `bundle install`.
+The `acroforge` command lands on your `PATH` automatically. RubyGems handles this the same way it does for `rails`, `bundle`, or any other Ruby CLI; tools like mise, rbenv, asdf, and rvm pick up the new binary through their shim layer without further configuration.
+
+To use AcroForge as a library inside another Ruby project, add it to that project's `Gemfile`:
+
+```ruby
+gem "acroforge"
+```
+
+See the [Installation guide](https://lzcorp-solutions.github.io/acroforge/installation) for troubleshooting `PATH` issues on non-standard Ruby setups.
 
 ## Quick start: the relabeling workflow
 
