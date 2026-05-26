@@ -4,10 +4,10 @@
 # Run from the gem root: ruby spec/fixtures/build_fixtures.rb
 #
 # Produces four fixtures used across the spec suite:
-#   - garbage_named.pdf      — AcroForm fields with non-semantic names (pageN_fieldM), 3 pages.
-#   - semantic_named.pdf     — Same structure, fields named semantically, 3 pages.
-#   - no_acroform.pdf        — Plain text page, no AcroForm dictionary.
-#   - school_application.pdf — Semantic-named school admission form, 3 pages.
+#   - garbage_named.pdf      - AcroForm fields with non-semantic names (pageN_fieldM), 3 pages.
+#   - semantic_named.pdf     - Same structure, fields named semantically, 3 pages.
+#   - no_acroform.pdf        - Plain text page, no AcroForm dictionary.
+#   - school_application.pdf - Semantic-named school admission form, 3 pages.
 
 require "hexapdf"
 
@@ -26,8 +26,8 @@ end
 # Draws one field (label + widget) onto the page.
 # spec keys:
 #   :name, :label, :type, :label_pos (:left | :above), :y, :field_x, :label_x
-#   :options  — array of {value:, text:} for :radio
-#   :choices  — array of strings for :choice
+#   :options  - array of {value:, text:} for :radio
+#   :choices  - array of strings for :choice
 def draw_field(canvas, page, form, spec)
   label_x = spec[:label_x]
   field_x = spec[:field_x]
@@ -86,7 +86,7 @@ def build_pdf(pages_spec, out_path)
 end
 
 # ---------------------------------------------------------------------------
-# Loan — garbage_named.pdf
+# Loan: garbage_named.pdf
 # Field names follow pageN_fieldM convention. Includes page0_field6 and
 # page0_field28 which are referenced directly in Task 14's Relabeler specs.
 # ---------------------------------------------------------------------------
@@ -161,7 +161,7 @@ LOAN_GARBAGE_PAGES = [
 build_pdf(LOAN_GARBAGE_PAGES, File.join(FIXTURES_DIR, "garbage_named.pdf"))
 
 # ---------------------------------------------------------------------------
-# Loan — semantic_named.pdf
+# Loan: semantic_named.pdf
 # Same structure, semantically-named fields.
 # ---------------------------------------------------------------------------
 
@@ -235,7 +235,7 @@ LOAN_SEMANTIC_PAGES = [
 build_pdf(LOAN_SEMANTIC_PAGES, File.join(FIXTURES_DIR, "semantic_named.pdf"))
 
 # ---------------------------------------------------------------------------
-# no_acroform.pdf — plain text, no AcroForm dictionary
+# no_acroform.pdf: plain text, no AcroForm dictionary
 # ---------------------------------------------------------------------------
 
 begin
@@ -252,7 +252,7 @@ begin
 end
 
 # ---------------------------------------------------------------------------
-# school_application.pdf — semantic-named school admission form, 3 pages
+# school_application.pdf: semantic-named school admission form, 3 pages
 # ---------------------------------------------------------------------------
 
 SCHOOL_PAGES = [

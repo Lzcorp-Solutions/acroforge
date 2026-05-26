@@ -33,7 +33,7 @@ module AcroForge
       warn "acroforge: #{e.message}"
       EXIT_USER_ERROR
     rescue => e
-      warn "acroforge: internal error — #{e.class}: #{e.message}"
+      warn "acroforge: internal error (#{e.class}): #{e.message}"
       EXIT_INTERNAL_ERROR
     end
 
@@ -44,7 +44,7 @@ module AcroForge
 
     def print_help(_)
       puts <<~HELP
-        acroforge — PDF AcroForm engine + relabeler
+        acroforge: PDF AcroForm engine + relabeler
 
         Usage:
           acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c]
@@ -104,7 +104,7 @@ module AcroForge
       when "apply"
         pdf = argv.shift
         mapping = argv.shift
-        raise ArgumentError, "missing arguments — expected <pdf> <mapping.yml>" if pdf.nil? || mapping.nil?
+        raise ArgumentError, "missing arguments: expected <pdf> <mapping.yml>" if pdf.nil? || mapping.nil?
         raise Errno::ENOENT, pdf unless File.exist?(pdf)
         raise Errno::ENOENT, mapping unless File.exist?(mapping)
 

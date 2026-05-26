@@ -1,10 +1,10 @@
 # AcroForge
 
-A Ruby toolkit for working with PDF AcroForms — especially the broken ones.
+A Ruby toolkit for working with PDF AcroForms, especially the broken ones.
 
-AcroForge reads, validates, relabels, and fills PDF forms. Its standout feature is the **relabeling workflow**: when a vendor ships you a fillable PDF whose internal field names look like `page0_field6`, `Text101`, or worse, AcroForge runs a spatial heuristic to figure out what each field is *actually* for, writes its proposal to a human-reviewable YAML file, and then permanently renames the AcroForm fields once you've approved the mapping. The result is a PDF you can fill programmatically without ever again writing `pdf.fields["page0_field6"] = "Alice"`.
+AcroForge reads, validates, relabels, and fills PDF forms. Its standout feature is the **relabeling workflow**: when a vendor ships you a fillable PDF whose internal field names look like `page0_field6`, `Text101`, or worse, AcroForge runs a spatial heuristic to figure out what each field is _actually_ for, writes its proposal to a human-reviewable YAML file, and then permanently renames the AcroForm fields once you've approved the mapping. The result is a PDF you can fill programmatically without ever again writing `pdf.fields["page0_field6"] = "Alice"`.
 
-It works on any AcroForm PDF — loan applications, school admission forms, government paperwork, internal HR templates. Nothing in the gem is domain-specific.
+It works on any AcroForm PDF: loan applications, school admission forms, government paperwork, internal HR templates. Nothing in the gem is domain-specific.
 
 ## Requirements
 
@@ -20,25 +20,25 @@ In your `Gemfile`:
 ```ruby
 gem "acroforge", path: "/path/to/acroforge"
 # or
-gem "acroforge", git: "https://github.com/youruser/acroforge.git"
+gem "acroforge", git: "https://github.com/Lzcorp-Solutions/acroforge.git"
 ```
 
 Then `bundle install`.
 
-## Quick start — the relabeling workflow
+## Quick start: the relabeling workflow
 
 Given a PDF with garbage-named fields:
 
 ```bash
-# 1. Generate a starter schema (advisory — the heuristic's best guess at canonical keys)
+# 1. Generate a starter schema (advisory; the heuristic's best guess at canonical keys)
 $ acroforge schema infer broken_form.pdf --out schema.yml
 
 # 2. Generate a draft mapping (per-field rename proposals, sorted by page/position)
 $ acroforge relabel propose broken_form.pdf --schema schema.yml --out mapping.yml
 
-# 3. Review mapping.yml in your editor — fix wrong proposals, fill in any blanks
+# 3. Review mapping.yml in your editor: fix wrong proposals, fill in any blanks
 
-# 4. Apply the mapping — permanently renames the AcroForm fields in place
+# 4. Apply the mapping: permanently renames the AcroForm fields in place
 $ acroforge relabel apply broken_form.pdf mapping.yml
 ```
 
@@ -53,7 +53,7 @@ $ acroforge bootstrap broken_form.pdf
 
 ## CLI
 
-```
+```text
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite]
 acroforge relabel apply <pdf> <mapping.yml>
@@ -63,13 +63,13 @@ acroforge version
 acroforge help
 ```
 
-| Subcommand | What it does |
-|---|---|
-| `schema infer` | Runs the heuristic on a PDF and writes a starter schema (canonical key → type + variations). Advisory; you review and edit. |
+| Subcommand        | What it does                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema infer`    | Runs the heuristic on a PDF and writes a starter schema (canonical key → type + variations). Advisory; you review and edit.                                                                                    |
 | `relabel propose` | Writes a YAML mapping file proposing a semantic name for every AcroForm field. Sorted by page → top-to-bottom → left-to-right. Default mode `--merge` preserves any `key`/`type` values you've already edited. |
-| `relabel apply` | Reads a corrected mapping file and rewrites `field[:T]` / `field[:TU]` in the source PDF in place. Auto-disambiguates collisions (`full_name`, `full_name_1`, ...). |
-| `compile` | Diagnostic: runs the engine and prints mapped/unmapped counts. Useful for checking heuristic coverage without writing any files. |
-| `bootstrap` | Convenience: `schema infer` + `relabel propose` in one call. |
+| `relabel apply`   | Reads a corrected mapping file and rewrites `field[:T]` / `field[:TU]` in the source PDF in place. Auto-disambiguates collisions (`full_name`, `full_name_1`, ...).                                            |
+| `compile`         | Diagnostic: runs the engine and prints mapped/unmapped counts. Useful for checking heuristic coverage without writing any files.                                                                               |
+| `bootstrap`       | Convenience: `schema infer` + `relabel propose` in one call.                                                                                                                                                   |
 
 Exit codes: `0` success, `1` user error (bad args, missing file), `2` validation error, `3` internal error.
 
@@ -107,8 +107,8 @@ AcroForge::Validator.valid?("not a date", :date)          # => false
 
 ### Errors
 
-- `AcroForge::ValidationError` — raised by `Engine#validate_payload!` on type mismatch.
-- `AcroForge::RelabelError` — raised by `Relabeler.apply!` on malformed mapping YAML, invalid key names, or missing AcroForm.
+- `AcroForge::ValidationError`: raised by `Engine#validate_payload!` on type mismatch.
+- `AcroForge::RelabelError`: raised by `Relabeler.apply!` on malformed mapping YAML, invalid key names, or missing AcroForm.
 
 ## Schema format
 
@@ -138,7 +138,7 @@ amount_requested:
 
 **Field keys** (`full_name`, `gender`, ...) become Ruby symbols. **`type`** is one of `string | select | boolean | money | date | email | number`. **`variations`** are the human-readable label strings to look for on the page. **`options`** are the allowed select values (for `select` and `boolean` types).
 
-AcroForge also accepts a legacy "shorthand" form where the value is just an array of variations — `AcroForge::Schema.normalize` upgrades it to rich form on the way in:
+AcroForge also accepts a legacy "shorthand" form where the value is just an array of variations. `AcroForge::Schema.normalize` upgrades it to rich form on the way in:
 
 ```ruby
 {
@@ -168,7 +168,7 @@ page0_field6:
     page: 0
 
 page0_field28:
-  key: full_name          # collision — apply! renames this one to full_name_1
+  key: full_name # collision: apply! renames this one to full_name_1
   type: string
   meta:
     raw_label: Customer Name
@@ -177,7 +177,7 @@ page0_field28:
     page: 0
 
 page0_field99:
-  key: ~                  # null = skip this field, leave its name unchanged
+  key: ~ # null = skip this field, leave its name unchanged
   type: ~
   meta:
     raw_label: ~
@@ -186,7 +186,7 @@ page0_field99:
     page: 3
 ```
 
-`key` must match `/\A[a-z][a-z0-9_]*\z/`. Invalid keys cause `apply!` to raise `RelabelError` *before* writing anything to the PDF.
+`key` must match `/\A[a-z][a-z0-9_]*\z/`. Invalid keys cause `apply!` to raise `RelabelError` _before_ writing anything to the PDF.
 
 ## How the heuristic works
 
@@ -198,7 +198,7 @@ For each AcroForm field, AcroForge:
 4. If a `schema` is supplied, canonicalises the key against its `variations` lists.
 5. For radio groups and checkboxes, also discovers the option export values from the widget appearance states.
 
-You can inspect what it found via `engine.field_proposals` after `compile!` — that's the data structure the Relabeler consumes.
+You can inspect what it found via `engine.field_proposals` after `compile!`. That's the data structure the Relabeler consumes.
 
 ## Development
 

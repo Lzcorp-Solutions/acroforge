@@ -33,7 +33,7 @@ module AcroForge
 
         field = form.field_by_name(pdf_name)
         unless field
-          warn "acroforge: stale entry — #{pdf_name.inspect} not found in PDF (skipping)"
+          warn "acroforge: stale entry #{pdf_name.inspect} not found in PDF (skipping)"
           next
         end
 
@@ -58,7 +58,7 @@ module AcroForge
         key = entry["key"]
         next if key.nil? || key.to_s.empty?
         unless key.to_s.match?(KEY_REGEX)
-          raise RelabelError, "invalid key #{key.inspect} for field #{pdf_name.inspect} — must match #{KEY_REGEX.inspect}"
+          raise RelabelError, "invalid key #{key.inspect} for field #{pdf_name.inspect}: must match #{KEY_REGEX.inspect}"
         end
       end
     end

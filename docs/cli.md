@@ -35,7 +35,7 @@ acroforge help
 
 ## `schema infer`
 
-Runs the spatial heuristic on the given PDF and writes a starter schema YAML file mapping canonical keys to types and label variations. The output is advisory — open it in an editor to correct any guesses before passing it to `relabel propose`.
+Runs the spatial heuristic on the given PDF and writes a starter schema YAML file mapping canonical keys to types and label variations. The output is advisory. Open it in an editor to correct any guesses before passing it to `relabel propose`.
 
 ```bash
 acroforge schema infer application.pdf --out schema.yml
@@ -68,7 +68,7 @@ Reads a corrected mapping file and permanently rewrites `field[:T]` (internal na
 acroforge relabel apply broken_form.pdf mapping.yml
 ```
 
-If two fields resolve to the same key, `apply` auto-disambiguates by appending `_1`, `_2`, etc. (`full_name`, `full_name_1`). If a `key` value fails validation (must match `/\A[a-z][a-z0-9_]*\z/`), `apply` raises `RelabelError` and writes nothing — the PDF is left untouched.
+If two fields resolve to the same key, `apply` auto-disambiguates by appending `_1`, `_2`, etc. (`full_name`, `full_name_1`). If a `key` value fails validation (must match `/\A[a-z][a-z0-9_]*\z/`), `apply` raises `RelabelError` and writes nothing. The PDF is left untouched.
 
 ---
 

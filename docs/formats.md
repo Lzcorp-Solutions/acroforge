@@ -28,7 +28,7 @@ amount_requested:
 
 **Field keys** (`full_name`, `gender`, ...) become Ruby symbols. **`type`** is one of `string | select | boolean | money | date | email | number`. **`variations`** are the human-readable label strings to look for on the page. **`options`** are the allowed select values (for `select` and `boolean` types).
 
-AcroForge also accepts a legacy "shorthand" form where the value is just an array of variations — `AcroForge::Schema.normalize` upgrades it to rich form on the way in:
+AcroForge also accepts a legacy "shorthand" form where the value is just an array of variations. `AcroForge::Schema.normalize` upgrades it to rich form on the way in:
 
 ```ruby
 {
@@ -60,7 +60,7 @@ page0_field6:
     page: 0
 
 page0_field28:
-  key: full_name          # collision — apply! renames this one to full_name_1
+  key: full_name          # collision: apply! renames this one to full_name_1
   type: string
   meta:
     raw_label: Customer Name
@@ -85,6 +85,6 @@ Only `key` and `type` under each field entry are consumed by `relabel apply`. Th
 Rules:
 
 - `key` must match `/\A[a-z][a-z0-9_]*\z/`. Invalid keys cause `apply!` to raise `RelabelError` *before* writing anything to the PDF.
-- Setting `key: ~` (YAML null) tells `apply!` to skip that field entirely — its internal name is left unchanged.
+- Setting `key: ~` (YAML null) tells `apply!` to skip that field entirely. Its internal name is left unchanged.
 - Duplicate keys are allowed and expected. `apply!` auto-disambiguates them by appending `_1`, `_2`, etc. in page order.
 - The `_meta` block at the top is informational; `apply!` ignores it.

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'AcroForge',
-  description: 'A Ruby toolkit for working with PDF AcroForms — especially the broken ones.',
+  description: 'A Ruby toolkit for working with PDF AcroForms, especially the broken ones.',
   base: '/acroforge/',
   cleanUrls: true,
   lastUpdated: true,
@@ -12,14 +12,14 @@ export default defineConfig({
       { text: 'Guide', link: '/quick-start' },
       { text: 'CLI', link: '/cli' },
       { text: 'API', link: '/api' },
-      { text: 'GitHub', link: 'https://github.com/youruser/acroforge' }
+      { text: 'GitHub', link: 'https://github.com/Lzcorp-Solutions/acroforge' }
     ],
 
     sidebar: [
       {
         text: 'Getting Started',
         items: [
-          { text: 'Introduction', link: '/' },
+          { text: 'Introduction', link: '/introduction' },
           { text: 'Installation', link: '/installation' },
           { text: 'Quick Start', link: '/quick-start' }
         ]
@@ -45,12 +45,12 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/youruser/acroforge' }
+      { icon: 'github', link: 'https://github.com/Lzcorp-Solutions/acroforge' }
     ],
 
     footer: {
-      message: 'Released under the MIT License.',
-      copyright: 'AcroForge v0.1.0'
+      message: 'Released under the MIT License · Ruby ≥ 2.7 · Built on HexaPDF',
+      copyright: `Copyright © 2026-present Maxwell Nana Forson`
     }
   }
 })
