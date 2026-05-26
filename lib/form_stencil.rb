@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "form_stencil/version"
+require_relative "form_stencil/constants"
 
 module FormStencil
   class Error < StandardError; end
