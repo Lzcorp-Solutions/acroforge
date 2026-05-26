@@ -59,6 +59,37 @@ RSpec.describe FormStencil::Engine do
     end
   end
 
+  describe "#field_proposals" do
+    it "returns one entry per AcroForm field with proposal metadata" do
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      silence_stdout { engine.compile! }
+
+      proposals = engine.field_proposals
+      expect(proposals).to be_an(Array)
+      expect(proposals).not_to be_empty
+
+      first = proposals.first
+      expect(first).to include(
+        :pdf_field_name,
+        :pdf_field_type,
+        :canonical_key,
+        :raw_label,
+        :confidence,
+        :section,
+        :page,
+        :y,
+        :x
+      )
+      expect(%i[text button choice other]).to include(first[:pdf_field_type])
+      expect(%i[high medium low none]).to include(first[:confidence])
+    end
+
+    it "raises if called before compile!" do
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      expect { engine.field_proposals }.to raise_error(/compile/)
+    end
+  end
+
   describe "#validate_payload!" do
     it "raises ValidationError when a money field receives non-numeric input" do
       overrides = {amount_requested: {type: :money}}

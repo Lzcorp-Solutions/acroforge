@@ -35,6 +35,7 @@ module FormStencil
       @missing_fields = []
       @select_field_options = {}
       @new_fields_detected = []
+      @field_proposals = nil
     end
 
     def source_doc
@@ -80,6 +81,11 @@ module FormStencil
       @mapped_fields.values.uniq
     end
 
+    def field_proposals
+      raise "field_proposals available only after compile!" if @field_proposals.nil?
+      @field_proposals
+    end
+
     # ------------------------------------------
     # PHASE 1: THE HIERARCHICAL COMPILER
     # ------------------------------------------
@@ -91,6 +97,7 @@ module FormStencil
       @unmapped_fields = []
       @select_field_options = {}
       @new_fields_detected = []
+      @field_proposals = []
 
       page_text_map = {}
       source_doc.pages.each_with_index do |page, index|
@@ -237,6 +244,23 @@ module FormStencil
           base_key = sanitize_key(raw_label)
           unless base_key
             @unmapped_fields << field.full_field_name
+            @field_proposals << {
+              pdf_field_name: field.full_field_name,
+              pdf_field_type: case field
+                              when HexaPDF::Type::AcroForm::TextField then :text
+                              when HexaPDF::Type::AcroForm::ButtonField then :button
+                              when HexaPDF::Type::AcroForm::ChoiceField then :choice
+                              else :other
+                              end,
+              canonical_key: nil,
+              raw_label: raw_label,
+              confidence: :none,
+              section: active_section,
+              page: page_index,
+              y: y_center,
+              x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
+              options: options_map
+            }
             puts "   [Failed] Could not derive a valid key for field: #{field.full_field_name}"
             next
           end
@@ -267,6 +291,23 @@ module FormStencil
         if target_key
           field[:T] = target_key.to_s
           @mapped_fields[field.full_field_name] = target_key
+          @field_proposals << {
+            pdf_field_name: field.full_field_name,
+            pdf_field_type: case field
+                            when HexaPDF::Type::AcroForm::TextField then :text
+                            when HexaPDF::Type::AcroForm::ButtonField then :button
+                            when HexaPDF::Type::AcroForm::ChoiceField then :choice
+                            else :other
+                            end,
+            canonical_key: target_key,
+            raw_label: raw_label,
+            confidence: confidence_for(raw_label, target_key),
+            section: active_section,
+            page: page_index,
+            y: y_center,
+            x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
+            options: options_map
+          }
 
           if is_btn && options_map && options_map.any?
             @select_field_options[target_key.to_s] = options_map
@@ -282,6 +323,23 @@ module FormStencil
           end
         else
           @unmapped_fields << field.full_field_name
+          @field_proposals << {
+            pdf_field_name: field.full_field_name,
+            pdf_field_type: case field
+                            when HexaPDF::Type::AcroForm::TextField then :text
+                            when HexaPDF::Type::AcroForm::ButtonField then :button
+                            when HexaPDF::Type::AcroForm::ChoiceField then :choice
+                            else :other
+                            end,
+            canonical_key: nil,
+            raw_label: raw_label,
+            confidence: :none,
+            section: active_section,
+            page: page_index,
+            y: y_center,
+            x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
+            options: options_map
+          }
           puts "   [Failed] Could not find a text label for field: #{field.full_field_name}"
         end
       end
@@ -419,6 +477,13 @@ module FormStencil
     end
 
     private
+
+    def confidence_for(raw_label, target_key)
+      return :none if raw_label.nil? || raw_label.strip.empty?
+      return :high if target_key && @schema.key?(target_key.to_s.to_sym)
+      return :medium if target_key
+      :low
+    end
 
     def sanitize_key(string)
       key = string.to_s.downcase
