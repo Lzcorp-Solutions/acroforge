@@ -13,46 +13,82 @@ module AcroForge
       when ".yml", ".yaml"
         YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: true)
       when ".json"
-        JSON.parse(File.read(path), symbolize_names: true)
+        JSON.parse(File.read(path), symbolize_names: false)
       else
         raise ArgumentError, "unknown schema file extension: #{path.inspect}"
       end
 
-      normalize(symbolize_top_level(raw))
+      normalize(symbolize_schema(raw))
     end
 
     def dump(schema, path)
+      stringified = stringify_schema(schema)
       case File.extname(path).downcase
       when ".yml", ".yaml"
-        File.write(path, YAML.dump(deep_stringify_symbols(schema)))
+        File.write(path, YAML.dump(stringified))
       when ".json"
-        File.write(path, JSON.pretty_generate(deep_stringify_symbols(schema)))
+        File.write(path, JSON.pretty_generate(stringified))
       else
         raise ArgumentError, "unknown schema file extension: #{path.inspect}"
       end
     end
 
-    def symbolize_top_level(hash)
-      return {} if hash.nil?
-      hash.each_with_object({}) { |(k, v), out| out[k.to_sym] = symbolize_inner(v) }
-    end
+    def symbolize_schema(raw_hash)
+      return {} if raw_hash.nil? || raw_hash.empty?
 
-    def symbolize_inner(value)
-      case value
-      when Hash then value.each_with_object({}) { |(k, v), out| out[k.to_sym] = symbolize_inner(v) }
-      when Array then value.map { |v| symbolize_inner(v) }
-      when String then value.start_with?(":") ? value[1..].to_sym : value
-      else value
+      raw_hash.each_with_object({}) do |(key, value), out|
+        out[key.to_sym] = symbolize_entry(value)
       end
     end
 
-    def deep_stringify_symbols(value)
-      case value
-      when Symbol then ":#{value}"
-      when Hash then value.each_with_object({}) { |(k, v), out| out[k.to_s] = deep_stringify_symbols(v) }
-      when Array then value.map { |v| deep_stringify_symbols(v) }
-      else value
+    def symbolize_entry(entry)
+      return entry unless entry.is_a?(Hash)
+
+      result = {}
+      entry.each do |k, v|
+        sym_k = k.to_sym
+        result[sym_k] = case sym_k
+        when :type
+          v.is_a?(String) ? v.to_sym : v
+        when :options
+          if v.is_a?(Array)
+            v.map { |item| item.is_a?(String) ? item.to_sym : item }
+          else
+            v
+          end
+        else
+          v
+        end
       end
+      result
+    end
+
+    def stringify_schema(schema)
+      schema.each_with_object({}) do |(key, value), out|
+        out[key.to_s] = stringify_entry(value)
+      end
+    end
+
+    def stringify_entry(entry)
+      return entry unless entry.is_a?(Hash)
+
+      result = {}
+      entry.each do |k, v|
+        str_k = k.to_s
+        result[str_k] = case k.to_sym
+        when :type
+          v.is_a?(Symbol) ? v.to_s : v
+        when :options
+          if v.is_a?(Array)
+            v.map { |item| item.is_a?(Symbol) ? item.to_s : item }
+          else
+            v
+          end
+        else
+          v
+        end
+      end
+      result
     end
 
     def infer(pdf_path, sections: [])

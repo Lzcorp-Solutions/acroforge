@@ -79,6 +79,36 @@ RSpec.describe AcroForge::Schema do
       result = described_class.load(path)
       expect(result[:full_name]).to eq(type: :string, variations: ["First Name"])
     end
+
+    it "emits YAML in human-readable form (no leading-colon symbol prefix)" do
+      path = File.join(@tmp, "human.yml")
+      described_class.dump(schema, path)
+      contents = File.read(path)
+      expect(contents).not_to match(/: ":\w+"/)
+      expect(contents).to match(/type: string/)
+      expect(contents).to match(/^- male/m).or match(/- male/)
+    end
+
+    it "loads a hand-written YAML where type and options are plain strings" do
+      path = File.join(@tmp, "hand_written.yml")
+      File.write(path, <<~YAML)
+        full_name:
+          type: string
+          variations:
+            - First Name
+        gender:
+          type: select
+          variations:
+            - Gender
+          options:
+            - male
+            - female
+      YAML
+      result = described_class.load(path)
+      expect(result[:full_name][:type]).to eq(:string)
+      expect(result[:gender][:type]).to eq(:select)
+      expect(result[:gender][:options]).to eq([:male, :female])
+    end
   end
 
   describe ".infer" do
