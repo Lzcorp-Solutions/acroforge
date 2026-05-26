@@ -3,112 +3,331 @@
 # Regenerable synthetic fixture PDFs for FormStencil specs.
 # Run from the gem root: ruby spec/fixtures/build_fixtures.rb
 #
-# Produces three fixtures used across the spec suite:
-#   - garbage_named.pdf   — AcroForm fields with non-semantic names (page0_fieldX) next to visible labels.
-#   - semantic_named.pdf  — AcroForm fields already named semantically (full_name, email, ...).
-#   - no_acroform.pdf     — plain text page, no AcroForm dictionary.
-#
-# Field names and labels here are deliberately generic — no proprietary vendor content.
+# Produces four fixtures used across the spec suite:
+#   - garbage_named.pdf      — AcroForm fields with non-semantic names (pageN_fieldM), 3 pages.
+#   - semantic_named.pdf     — Same structure, fields named semantically, 3 pages.
+#   - no_acroform.pdf        — Plain text page, no AcroForm dictionary.
+#   - school_application.pdf — Semantic-named school admission form, 3 pages.
 
 require "hexapdf"
 
 FIXTURES_DIR = __dir__
 
-def draw_label(canvas, text, x, y)
+def draw_section_header(canvas, text, y)
+  canvas.font("Helvetica", size: 14, variant: :bold)
+  canvas.text(text, at: [72, y])
+end
+
+def draw_field_label(canvas, text, x, y)
   canvas.font("Helvetica", size: 10)
   canvas.text(text, at: [x, y])
 end
 
-def build_form_pdf(field_specs)
+# Draws one field (label + widget) onto the page.
+# spec keys:
+#   :name, :label, :type, :label_pos (:left | :above), :y, :field_x, :label_x
+#   :options  — array of {value:, text:} for :radio
+#   :choices  — array of strings for :choice
+def draw_field(canvas, page, form, spec)
+  label_x = spec[:label_x]
+  field_x = spec[:field_x]
+  y = spec[:y]
+
+  if spec[:label_pos] == :above
+    draw_field_label(canvas, spec[:label], field_x, y + 22)
+  else
+    draw_field_label(canvas, spec[:label], label_x, y + 4)
+  end
+
+  case spec[:type]
+  when :text
+    field = form.create_text_field(spec[:name])
+    field.create_widget(page, Rect: [field_x, y, field_x + 200, y + 18])
+
+  when :radio
+    rg = form.create_radio_button(spec[:name])
+    spec[:options].each_with_index do |opt, i|
+      xo = field_x + (i * 100)
+      rg.create_widget(page, Rect: [xo, y, xo + 14, y + 14], value: opt[:value])
+      draw_field_label(canvas, opt[:text], xo + 18, y + 2)
+    end
+
+  when :checkbox
+    cb = form.create_check_box(spec[:name])
+    cb.create_widget(page, Rect: [field_x, y, field_x + 14, y + 14])
+
+  when :choice
+    field = form.create_combo_box(spec[:name], option_items: spec[:choices])
+    field.create_widget(page, Rect: [field_x, y, field_x + 200, y + 18])
+  end
+end
+
+# Builds and writes one PDF from a pages_spec array.
+# Each element: { header:, fields: [...] }
+def build_pdf(pages_spec, out_path)
   doc = HexaPDF::Document.new
-  fields_by_page = field_specs.group_by { |s| s[:page] }
-  max_page = fields_by_page.keys.max || 0
-
-  pages = (0..max_page).map { doc.pages.add }
   form = doc.acro_form(create: true)
+  total_fields = 0
 
-  fields_by_page.each do |page_idx, specs|
-    page = pages[page_idx]
+  pages_spec.each do |page_spec|
+    page = doc.pages.add
     canvas = page.canvas
 
-    specs.each do |s|
-      draw_label(canvas, s[:label], s[:label_x], s[:y] + 4)
+    draw_section_header(canvas, page_spec[:header], 750)
 
-      case s[:type]
-      when :text
-        field = form.create_text_field(s[:name])
-        field.create_widget(page, Rect: [s[:field_x], s[:y], s[:field_x] + 200, s[:y] + 18])
-      when :radio
-        rg = form.create_radio_button(s[:name])
-        s[:options].each_with_index do |opt, i|
-          xo = s[:field_x] + (i * 80)
-          rg.create_widget(page, Rect: [xo, s[:y], xo + 14, s[:y] + 14], value: opt.to_sym)
-          draw_label(canvas, opt.to_s, xo + 18, s[:y] + 4)
-        end
-      end
+    page_spec[:fields].each do |spec|
+      draw_field(canvas, page, form, spec)
+      total_fields += 1
     end
   end
 
-  doc
+  doc.write(out_path, validate: false)
+  puts "Wrote #{out_path} (#{File.size(out_path)} bytes, #{total_fields} fields)"
 end
 
-# ---- garbage_named.pdf ----
-# 15 fields with page0_fieldX names. Includes page0_field6 and page0_field28 (used directly in Relabeler specs).
+# ---------------------------------------------------------------------------
+# Loan — garbage_named.pdf
+# Field names follow pageN_fieldM convention. Includes page0_field6 and
+# page0_field28 which are referenced directly in Task 14's Relabeler specs.
+# ---------------------------------------------------------------------------
 
-garbage_specs = [
-  {name: "page0_field6", label: "Full Name:", type: :text, page: 0, y: 700, label_x: 72, field_x: 220},
-  {name: "page0_field7", label: "Email Address:", type: :text, page: 0, y: 670, label_x: 72, field_x: 220},
-  {name: "page0_field8", label: "Phone Number:", type: :text, page: 0, y: 640, label_x: 72, field_x: 220},
-  {name: "page0_field9", label: "Date of Birth:", type: :text, page: 0, y: 610, label_x: 72, field_x: 220},
-  {name: "page0_field10", label: "Gender:", type: :radio, page: 0, y: 580, label_x: 72, field_x: 220, options: %w[Male Female]},
-  {name: "page0_field11", label: "Residential Address:", type: :text, page: 0, y: 550, label_x: 72, field_x: 220},
-  {name: "page0_field12", label: "City:", type: :text, page: 0, y: 520, label_x: 72, field_x: 220},
-  {name: "page0_field13", label: "Postal Code:", type: :text, page: 0, y: 490, label_x: 72, field_x: 220},
-  {name: "page0_field28", label: "Applicant Name:", type: :text, page: 0, y: 440, label_x: 72, field_x: 220},
-  {name: "page0_field29", label: "Amount Requested:", type: :text, page: 0, y: 410, label_x: 72, field_x: 220},
-  {name: "page0_field30", label: "Loan Tenor (months):", type: :text, page: 0, y: 380, label_x: 72, field_x: 220},
-  {name: "page0_field31", label: "Purpose of Loan:", type: :text, page: 0, y: 350, label_x: 72, field_x: 220},
-  {name: "page0_field32", label: "Annual Salary:", type: :text, page: 0, y: 320, label_x: 72, field_x: 220},
-  {name: "page0_field33", label: "Occupation:", type: :text, page: 0, y: 290, label_x: 72, field_x: 220},
-  {name: "page0_field34", label: "Employer Name:", type: :text, page: 0, y: 260, label_x: 72, field_x: 220}
-]
+LOAN_GARBAGE_PAGES = [
+  {
+    header: "Personal Details",
+    fields: [
+      {name: "page0_field6", label: "Full Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page0_field7", label: "Email Address:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page0_field8", label: "Phone Number:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page0_field9", label: "Date of Birth:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :above},
+      {
+        name: "page0_field10",
+        label: "Gender:",
+        type: :radio,
+        y: 575,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :male, text: "Male"},
+          {value: :female, text: "Female"}
+        ]
+      },
+      {
+        name: "page0_field11",
+        label: "Marital Status:",
+        type: :choice,
+        y: 545,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        choices: %w[Single Married Divorced Widowed]
+      },
+      {name: "page0_field28", label: "Residential Address:", type: :text, y: 515, label_x: 72, field_x: 220, label_pos: :above}
+    ]
+  },
+  {
+    header: "Employment Details",
+    fields: [
+      {name: "page1_field0", label: "Employer Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page1_field1", label: "Occupation:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page1_field2", label: "Annual Salary:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :above},
+      {name: "page1_field3", label: "Date Employed:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :left}
+    ]
+  },
+  {
+    header: "Loan Details",
+    fields: [
+      {name: "page2_field0", label: "Amount Requested:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page2_field1", label: "Loan Tenor (months):", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "page2_field2", label: "Purpose of Loan:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :above},
+      {
+        name: "page2_field3",
+        label: "Repayment Mode:",
+        type: :radio,
+        y: 605,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :standing_order, text: "Standing Order"},
+          {value: :direct_debit, text: "Direct Debit"}
+        ]
+      },
+      {name: "page2_field4", label: "I confirm the information above is accurate", type: :checkbox, y: 575, label_x: 72, field_x: 72, label_pos: :above}
+    ]
+  }
+].freeze
 
-out = File.join(FIXTURES_DIR, "garbage_named.pdf")
-build_form_pdf(garbage_specs).write(out, validate: false)
-puts "Wrote #{out} (#{File.size(out)} bytes, #{garbage_specs.size} fields)"
+build_pdf(LOAN_GARBAGE_PAGES, File.join(FIXTURES_DIR, "garbage_named.pdf"))
 
-# ---- semantic_named.pdf ----
-# Same layout, but AcroForm field names are already semantic.
+# ---------------------------------------------------------------------------
+# Loan — semantic_named.pdf
+# Same structure, semantically-named fields.
+# ---------------------------------------------------------------------------
 
-semantic_specs = [
-  {name: "full_name", label: "Full Name:", type: :text, page: 0, y: 700, label_x: 72, field_x: 220},
-  {name: "email", label: "Email Address:", type: :text, page: 0, y: 670, label_x: 72, field_x: 220},
-  {name: "phone_number", label: "Phone Number:", type: :text, page: 0, y: 640, label_x: 72, field_x: 220},
-  {name: "date_of_birth", label: "Date of Birth:", type: :text, page: 0, y: 610, label_x: 72, field_x: 220},
-  {name: "gender", label: "Gender:", type: :radio, page: 0, y: 580, label_x: 72, field_x: 220, options: %w[Male Female]},
-  {name: "residential_address", label: "Residential Address:", type: :text, page: 0, y: 550, label_x: 72, field_x: 220},
-  {name: "city", label: "City:", type: :text, page: 0, y: 520, label_x: 72, field_x: 220},
-  {name: "amount_requested", label: "Amount Requested:", type: :text, page: 0, y: 440, label_x: 72, field_x: 220},
-  {name: "loan_tenor", label: "Loan Tenor (months):", type: :text, page: 0, y: 410, label_x: 72, field_x: 220},
-  {name: "purpose_of_loan", label: "Purpose of Loan:", type: :text, page: 0, y: 380, label_x: 72, field_x: 220},
-  {name: "annual_salary", label: "Annual Salary:", type: :text, page: 0, y: 350, label_x: 72, field_x: 220},
-  {name: "occupation", label: "Occupation:", type: :text, page: 0, y: 320, label_x: 72, field_x: 220},
-  {name: "employer_name", label: "Employer Name:", type: :text, page: 0, y: 290, label_x: 72, field_x: 220}
-]
+LOAN_SEMANTIC_PAGES = [
+  {
+    header: "Personal Details",
+    fields: [
+      {name: "full_name", label: "Full Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "email", label: "Email Address:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "phone_number", label: "Phone Number:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "date_of_birth", label: "Date of Birth:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :above},
+      {
+        name: "gender",
+        label: "Gender:",
+        type: :radio,
+        y: 575,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :male, text: "Male"},
+          {value: :female, text: "Female"}
+        ]
+      },
+      {
+        name: "marital_status",
+        label: "Marital Status:",
+        type: :choice,
+        y: 545,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        choices: %w[Single Married Divorced Widowed]
+      },
+      {name: "residential_address", label: "Residential Address:", type: :text, y: 515, label_x: 72, field_x: 220, label_pos: :above}
+    ]
+  },
+  {
+    header: "Employment Details",
+    fields: [
+      {name: "employer_name", label: "Employer Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "occupation", label: "Occupation:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "annual_salary", label: "Annual Salary:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :above},
+      {name: "date_employed", label: "Date Employed:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :left}
+    ]
+  },
+  {
+    header: "Loan Details",
+    fields: [
+      {name: "amount_requested", label: "Amount Requested:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "loan_tenor", label: "Loan Tenor (months):", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "purpose_of_loan", label: "Purpose of Loan:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :above},
+      {
+        name: "repayment_mode",
+        label: "Repayment Mode:",
+        type: :radio,
+        y: 605,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :standing_order, text: "Standing Order"},
+          {value: :direct_debit, text: "Direct Debit"}
+        ]
+      },
+      {name: "terms_accepted", label: "I confirm the information above is accurate", type: :checkbox, y: 575, label_x: 72, field_x: 72, label_pos: :above}
+    ]
+  }
+].freeze
 
-out = File.join(FIXTURES_DIR, "semantic_named.pdf")
-build_form_pdf(semantic_specs).write(out, validate: false)
-puts "Wrote #{out} (#{File.size(out)} bytes, #{semantic_specs.size} fields)"
+build_pdf(LOAN_SEMANTIC_PAGES, File.join(FIXTURES_DIR, "semantic_named.pdf"))
 
-# ---- no_acroform.pdf ----
+# ---------------------------------------------------------------------------
+# no_acroform.pdf — plain text, no AcroForm dictionary
+# ---------------------------------------------------------------------------
 
-doc = HexaPDF::Document.new
-page = doc.pages.add
-canvas = page.canvas
-canvas.font("Helvetica", size: 12)
-canvas.text("This PDF intentionally has no AcroForm fields.", at: [72, 700])
-canvas.text("It exists for testing the engine's no-form code path.", at: [72, 680])
+begin
+  doc = HexaPDF::Document.new
+  page = doc.pages.add
+  canvas = page.canvas
+  canvas.font("Helvetica", size: 12)
+  canvas.text("This PDF intentionally has no AcroForm fields.", at: [72, 700])
+  canvas.text("It exists for testing the engine's no-form code path.", at: [72, 680])
 
-out = File.join(FIXTURES_DIR, "no_acroform.pdf")
-doc.write(out, validate: false)
-puts "Wrote #{out} (#{File.size(out)} bytes, no AcroForm)"
+  out = File.join(FIXTURES_DIR, "no_acroform.pdf")
+  doc.write(out, validate: false)
+  puts "Wrote #{out} (#{File.size(out)} bytes, no AcroForm)"
+end
+
+# ---------------------------------------------------------------------------
+# school_application.pdf — semantic-named school admission form, 3 pages
+# ---------------------------------------------------------------------------
+
+SCHOOL_PAGES = [
+  {
+    header: "Student Information",
+    fields: [
+      {name: "student_full_name", label: "Student Full Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "date_of_birth", label: "Date of Birth:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {
+        name: "gender",
+        label: "Gender:",
+        type: :radio,
+        y: 635,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :male, text: "Male"},
+          {value: :female, text: "Female"}
+        ]
+      },
+      {
+        name: "grade_applying_for",
+        label: "Grade Applying For:",
+        type: :choice,
+        y: 605,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        choices: %w[Pre-K Kindergarten Grade-1 Grade-2 Grade-3 Grade-4 Grade-5]
+      },
+      {name: "home_address", label: "Home Address:", type: :text, y: 575, label_x: 72, field_x: 220, label_pos: :above}
+    ]
+  },
+  {
+    header: "Parent/Guardian",
+    fields: [
+      {name: "parent_full_name", label: "Parent/Guardian Full Name:", type: :text, y: 700, label_x: 72, field_x: 280, label_pos: :left},
+      {
+        name: "relationship",
+        label: "Relationship:",
+        type: :choice,
+        y: 670,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        choices: %w[Mother Father Guardian]
+      },
+      {name: "parent_email", label: "Email:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "parent_phone", label: "Phone:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :above},
+      {name: "parent_occupation", label: "Occupation:", type: :text, y: 580, label_x: 72, field_x: 220, label_pos: :left}
+    ]
+  },
+  {
+    header: "Previous School & Enrollment",
+    fields: [
+      {name: "previous_school_name", label: "Previous School:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "last_grade_completed", label: "Last Grade Completed:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "transfer_reason", label: "Reason for Transfer:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :above},
+      {
+        name: "program_preference",
+        label: "Program Preference:",
+        type: :radio,
+        y: 605,
+        label_x: 72,
+        field_x: 220,
+        label_pos: :left,
+        options: [
+          {value: :day, text: "Day"},
+          {value: :boarding, text: "Boarding"}
+        ]
+      },
+      {name: "consent_to_share_records", label: "I consent to share academic records", type: :checkbox, y: 575, label_x: 72, field_x: 72, label_pos: :above}
+    ]
+  }
+].freeze
+
+build_pdf(SCHOOL_PAGES, File.join(FIXTURES_DIR, "school_application.pdf"))
