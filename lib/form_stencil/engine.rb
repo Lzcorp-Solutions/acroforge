@@ -217,9 +217,9 @@ module FormStencil
         # the original PDF field names (strings like "page0_field6"). When an
         # override exists, map the PDF field to the semantic :key declared in the
         # override (e.g. :full_name) so downstream validation uses semantic keys.
-        affinity_entry = @overrides[field.full_field_name.to_s] || @overrides[field.full_field_name.to_sym]
-        if affinity_entry
-          mapped_semantic = affinity_entry[:key].to_sym
+        override_entry = @overrides[field.full_field_name.to_s] || @overrides[field.full_field_name.to_sym]
+        if override_entry
+          mapped_semantic = override_entry[:key].to_sym
           target_key = is_btn ? :"#{mapped_semantic}_btn" : mapped_semantic
 
           # Ensure uniqueness when multiple fields map to the same semantic key
@@ -230,7 +230,7 @@ module FormStencil
             counter += 1
           end
 
-          puts "   [Override] '#{field.full_field_name}' -> :#{target_key} (Affinity Native)"
+          puts "   [Override] '#{field.full_field_name}' -> :#{target_key} (Override)"
         elsif raw_label
           base_key = sanitize_key(raw_label)
           unless base_key
@@ -420,7 +420,7 @@ module FormStencil
 
     def sanitize_key(string)
       key = string.to_s.downcase
-        .gsub(/['*]/, "")
+        .gsub(/['’*]/, "")
         .gsub(/[^a-z0-9]+/, "_").squeeze("_")
         .sub(/_$/, "")
         .sub(/^_/, "")
@@ -634,15 +634,15 @@ module FormStencil
         # Try to resolve override info. @overrides may be keyed by
         # original PDF field names (strings like "page0_field6") so allow lookup
         # by semantic base_key (matching value[:key]) or by string key.
-        affinity_info = @overrides[base_key] || @overrides[base_key.to_s] || @overrides.values.find { |v| v.is_a?(Hash) && v[:key].to_sym == base_key }
+        override_info = @overrides[base_key] || @overrides[base_key.to_s] || @overrides.values.find { |v| v.is_a?(Hash) && v[:key].to_sym == base_key }
 
         type_info = @schema[base_key]
 
         # If it's a button field, it's a select type by nature
         type = if key_str.include?("_btn")
           :select
-        elsif affinity_info
-          affinity_info[:type]
+        elsif override_info
+          override_info[:type]
         elsif type_info
           type_info.is_a?(Hash) ? type_info[:type] : :string
         else
