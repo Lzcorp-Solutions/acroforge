@@ -117,4 +117,29 @@ RSpec.describe AcroForge::Engine do
       expect(values.grep(/_btn_btn/)).to be_empty
     end
   end
+
+  describe "#normalize_button_base_key" do
+    let(:engine) { described_class.new(semantic_fixture, normalized_dir: @tmp) }
+
+    it "overrides the spatial label and returns a canonical Title label when options look like a title selector" do
+      options_map = {"dr" => "Dr", "mr" => "Mr", "mrs" => "Mrs", "miss" => "Miss"}
+      key, label = engine.send(:normalize_button_base_key, :first_name, options_map)
+      expect(key).to eq(:title)
+      expect(label).to eq("Title")
+    end
+
+    it "overrides to :gender when options are male/female" do
+      options_map = {"male" => "Male", "female" => "Female"}
+      key, label = engine.send(:normalize_button_base_key, :ecowas_id, options_map)
+      expect(key).to eq(:gender)
+      expect(label).to eq("Gender")
+    end
+
+    it "returns the original base_key and nil label when options do not match a known set" do
+      options_map = {"north" => "N", "south" => "S"}
+      key, label = engine.send(:normalize_button_base_key, :direction, options_map)
+      expect(key).to eq(:direction)
+      expect(label).to be_nil
+    end
+  end
 end

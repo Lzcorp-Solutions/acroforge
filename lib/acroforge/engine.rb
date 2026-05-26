@@ -268,7 +268,12 @@ module AcroForge
           end
 
           if is_btn
-            base_key = normalize_button_base_key(base_key, options_map)
+            base_key, override_label = normalize_button_base_key(base_key, options_map)
+            # Spatial heuristic's nearby-text guess can be wrong (e.g., a Title
+            # radio group sitting close to a "First Name" text input). If the
+            # options unambiguously identify the field, trust them and overwrite
+            # the misleading raw_label so variations + meta stay self-consistent.
+            raw_label = override_label if override_label
           end
 
           canonical_schema_key = canonical_schema_key_for(base_key, raw_label)
@@ -623,26 +628,26 @@ module AcroForge
       states.uniq
     end
 
+    # Returns [resolved_base_key, canonical_label_or_nil].
+    # When the options of a radio group / choice field clearly identify
+    # the field's semantic role (e.g., options [dr, mr, mrs, miss] mean
+    # the field IS a title selector), we override the spatially-derived
+    # base_key AND return the canonical human label so callers can
+    # replace a misleading raw_label too.
     def normalize_button_base_key(base_key, options_map)
-      return base_key unless options_map.is_a?(Hash) && options_map.any?
+      return [base_key, nil] unless options_map.is_a?(Hash) && options_map.any?
 
       option_keys = options_map.keys.map { |k| sanitize_key(k)&.to_s }.compact.uniq
 
       title_tokens = %w[dr mr mrs miss title]
-      if (option_keys & title_tokens).size >= 2
-        return :title
-      end
+      return [:title, "Title"] if (option_keys & title_tokens).size >= 2
 
-      if option_keys.include?("male") && option_keys.include?("female")
-        return :gender
-      end
+      return [:gender, "Gender"] if option_keys.include?("male") && option_keys.include?("female")
 
       marital_tokens = %w[single married divorced widow_widower widowed]
-      if (option_keys & marital_tokens).size >= 2
-        return :marital_status
-      end
+      return [:marital_status, "Marital Status"] if (option_keys & marital_tokens).size >= 2
 
-      base_key
+      [base_key, nil]
     end
 
     def schema_variations(canonical_key)
