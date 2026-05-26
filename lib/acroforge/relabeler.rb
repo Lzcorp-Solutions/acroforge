@@ -26,13 +26,22 @@ module AcroForge
       form = doc.acro_form(create: false)
       raise RelabelError, "PDF has no AcroForm: #{pdf_path}" unless form
 
+      renamed = 0
+      disambiguated = 0
+      skipped_null = 0
+      stale = 0
+
       claimed = {}
       entries.each do |pdf_name, entry|
         key = entry["key"]
-        next if key.nil? || key.to_s.empty?
+        if key.nil? || key.to_s.empty?
+          skipped_null += 1
+          next
+        end
 
         field = form.field_by_name(pdf_name)
         unless field
+          stale += 1
           warn "acroforge: stale entry #{pdf_name.inspect} not found in PDF (skipping)"
           next
         end
@@ -43,13 +52,23 @@ module AcroForge
           target = "#{key}_#{counter}"
           counter += 1
         end
+        disambiguated += 1 if target != key.to_s
         claimed[target] = true
 
         field[:T] = target
         field[:TU] = target
+        renamed += 1
       end
 
       doc.write(pdf_path)
+
+      {
+        total: entries.size,
+        renamed: renamed,
+        disambiguated: disambiguated,
+        skipped_null: skipped_null,
+        stale: stale
+      }
     end
 
     def validate!(entries)
@@ -76,6 +95,14 @@ module AcroForge
         end
 
         File.write(out, render_yaml(pdf_path, entries))
+
+        mapped = entries.values.count { |e| !e["key"].nil? && !e["key"].to_s.empty? }
+        {
+          total: entries.size,
+          mapped: mapped,
+          unmapped: entries.size - mapped,
+          out_path: out
+        }
       end
     end
 

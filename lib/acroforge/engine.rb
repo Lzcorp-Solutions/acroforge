@@ -231,7 +231,7 @@ module AcroForge
         if override_entry
           semantic_name = override_entry[:key] || override_key_used
           mapped_semantic = semantic_name.to_sym
-          target_key = is_btn ? :"#{mapped_semantic}_btn" : mapped_semantic
+          target_key = (is_btn && !mapped_semantic.to_s.end_with?("_btn")) ? :"#{mapped_semantic}_btn" : mapped_semantic
 
           # Ensure uniqueness when multiple fields map to the same semantic key
           original_target = target_key
@@ -280,7 +280,7 @@ module AcroForge
 
           target_key = active_section ? :"#{active_section}_#{base_key}" : base_key
           target_key = @overrides[raw_label].to_sym if @overrides[raw_label]
-          target_key = :"#{target_key}_btn" if is_btn
+          target_key = :"#{target_key}_btn" if is_btn && !target_key.to_s.end_with?("_btn")
 
           original_target = target_key
           counter = 1

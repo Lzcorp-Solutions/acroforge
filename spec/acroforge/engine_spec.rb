@@ -101,4 +101,20 @@ RSpec.describe AcroForge::Engine do
       }.to raise_error(AcroForge::ValidationError)
     end
   end
+
+  describe "#compile! _btn suffix is idempotent" do
+    it "does not double-suffix a button field whose canonical key already ends in _btn" do
+      # Override gives a button field a key that already ends in _btn; the engine
+      # must not produce :something_btn_btn.
+      overrides = {
+        "page0_field10" => {key: :gender_btn, type: :select}
+      }
+      engine = described_class.new(garbage_fixture, overrides: overrides, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+
+      values = result[:mapped].values.map(&:to_s)
+      expect(values).to include("gender_btn")
+      expect(values.grep(/_btn_btn/)).to be_empty
+    end
+  end
 end
