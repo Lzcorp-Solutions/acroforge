@@ -169,7 +169,7 @@ LOAN_SEMANTIC_PAGES = [
   {
     header: "Personal Details",
     fields: [
-      {name: "full_name", label: "Full Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
+      {name: "last_name", label: "Last Name:", type: :text, y: 700, label_x: 72, field_x: 220, label_pos: :left},
       {name: "email", label: "Email Address:", type: :text, y: 670, label_x: 72, field_x: 220, label_pos: :left},
       {name: "phone_number", label: "Phone Number:", type: :text, y: 640, label_x: 72, field_x: 220, label_pos: :left},
       {name: "date_of_birth", label: "Date of Birth:", type: :text, y: 610, label_x: 72, field_x: 220, label_pos: :above},

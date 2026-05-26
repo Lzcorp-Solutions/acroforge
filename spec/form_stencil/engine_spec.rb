@@ -24,4 +24,50 @@ RSpec.describe FormStencil::Engine do
       expect(result[:mapped]).not_to be_empty
     end
   end
+
+  let(:no_acroform_fixture) { File.expand_path("../fixtures/no_acroform.pdf", __dir__) }
+  let(:garbage_fixture) { File.expand_path("../fixtures/garbage_named.pdf", __dir__) }
+
+  describe "#compile! with an explicit schema" do
+    it "canonicalizes labels into schema keys" do
+      schema = {
+        last_name: ["Last Name", "Surname"],
+        date_of_birth: ["Date of Birth", "DOB"]
+      }
+      engine = described_class.new(semantic_fixture, schema: schema, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+
+      mapped_values = result[:mapped].values.map(&:to_s)
+      expect(mapped_values.any? { |v| v.include?("last_name") }).to be true
+    end
+  end
+
+  describe "#compile! on a PDF without an AcroForm" do
+    it "returns empty mapped/unmapped sets" do
+      engine = described_class.new(no_acroform_fixture, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+      expect(result[:mapped]).to be_empty
+      expect(result[:unmapped]).to be_empty
+    end
+  end
+
+  describe "#compile! on a PDF with garbage names and no overrides" do
+    it "returns proposals from the spatial heuristic (non-empty mapped)" do
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+      expect(result[:mapped]).not_to be_empty
+    end
+  end
+
+  describe "#validate_payload!" do
+    it "raises ValidationError when a money field receives non-numeric input" do
+      overrides = {amount_requested: {type: :money}}
+      engine = described_class.new(semantic_fixture, overrides: overrides, normalized_dir: @tmp)
+      silence_stdout { engine.compile! }
+
+      expect {
+        engine.validate_payload!({amount_requested: "not a number"})
+      }.to raise_error(FormStencil::ValidationError)
+    end
+  end
 end

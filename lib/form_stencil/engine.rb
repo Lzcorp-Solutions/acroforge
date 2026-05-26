@@ -217,9 +217,11 @@ module FormStencil
         # the original PDF field names (strings like "page0_field6"). When an
         # override exists, map the PDF field to the semantic :key declared in the
         # override (e.g. :full_name) so downstream validation uses semantic keys.
+        override_key_used = @overrides.key?(field.full_field_name.to_s) ? field.full_field_name.to_s : field.full_field_name.to_sym
         override_entry = @overrides[field.full_field_name.to_s] || @overrides[field.full_field_name.to_sym]
         if override_entry
-          mapped_semantic = override_entry[:key].to_sym
+          semantic_name = override_entry[:key] || override_key_used
+          mapped_semantic = semantic_name.to_sym
           target_key = is_btn ? :"#{mapped_semantic}_btn" : mapped_semantic
 
           # Ensure uniqueness when multiple fields map to the same semantic key
@@ -755,5 +757,7 @@ module FormStencil
 
       best_text&.sub(/:\z/, "")&.strip
     end
+
+    public :validate_payload!
   end
 end
