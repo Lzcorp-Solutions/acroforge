@@ -8,6 +8,7 @@ require "uri"
 require_relative "all_text_processor"
 require_relative "validator"
 require_relative "constants"
+require_relative "labels"
 
 module AcroForge
   class Engine
@@ -136,6 +137,7 @@ module AcroForge
           first_widget = field.each_widget.min_by { |w| [-w[:Rect][1], w[:Rect][0]] }
 
           raw_label = find_nearest_text(page_text_map[page_index], first_widget[:Rect], mode: :group_label)
+          raw_label = AcroForge::Labels.humanize(raw_label)
 
           if raw_label
             if raw_label.include?(":")
@@ -209,6 +211,7 @@ module AcroForge
         else
           field_rect = widget[:Rect]
           raw_label = find_nearest_text(page_text_map[page_index], field_rect, mode: :standard)
+          raw_label = AcroForge::Labels.humanize(raw_label)
         end
 
         y_center = if is_radio_group

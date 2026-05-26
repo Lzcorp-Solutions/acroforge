@@ -34,12 +34,12 @@ engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
 
 `compile!` returns a hash with four keys:
 
-- `mapped`: canonical key → widget metadata for every field the heuristic resolved
+- `mapped`: PDF field name → canonical key for every field the heuristic resolved
 - `unmapped`: list of AcroForm field names that couldn't be matched to a schema key
 - `select_options`: discovered export values for radio/checkbox groups
 - `new_fields_detected`: schema keys that appear in the PDF but weren't in your schema
 
-After `compile!`, call `engine.field_proposals` to inspect the raw per-field scoring data that the Relabeler consumes.
+After `compile!`, call `engine.field_proposals` to inspect the raw per-field scoring data that the Relabeler consumes. The proposals include `pdf_field_name`, `pdf_field_type`, `canonical_key`, `raw_label` (cleaned), `confidence`, `section`, `page`, `y`, `x`, and `options`.
 
 ### `AcroForge::Schema`
 
@@ -49,28 +49,46 @@ Loads, normalises, infers, and dumps schema files.
 # Generate a starter schema from a PDF.
 schema = AcroForge::Schema.infer("form.pdf")
 AcroForge::Schema.dump(schema, "schema.yml")
+
+# If you've already compiled an engine, pass it in to avoid a second compile pass.
+engine = AcroForge::Engine.new("form.pdf")
+engine.compile!
+schema = AcroForge::Schema.infer("form.pdf", engine: engine)
 ```
 
-`Schema.load` accepts a file path (YAML or JSON) or a Hash. It normalises shorthand schemas (where values are arrays of variations) into the rich form on the way in.
+`Schema.load` accepts a file path (YAML or JSON) and returns a Hash in the rich form (`{key => {type:, variations:, options:}}`). It also normalises shorthand schemas (where values are arrays of variations) into the rich form on the way in.
 
 ### `AcroForge::Relabeler`
 
-Runs the propose and apply phases programmatically.
+Runs the propose and apply phases programmatically. Both methods return a result hash describing what happened.
 
 ```ruby
-# Run the relabeler programmatically.
-AcroForge::Relabeler.propose("form.pdf", out: "mapping.yml", schema: schema)
-AcroForge::Relabeler.apply!("form.pdf", "mapping.yml")
+# Generate a mapping. Returns { total:, mapped:, unmapped:, out_path: }.
+result = AcroForge::Relabeler.propose("form.pdf", out: "mapping.yml", schema: schema)
+# => { total: 92, mapped: 82, unmapped: 10, out_path: "mapping.yml" }
+
+# Apply the mapping. Returns { total:, renamed:, disambiguated:, skipped_null:, stale: }.
+result = AcroForge::Relabeler.apply!("form.pdf", "mapping.yml")
+# => { total: 92, renamed: 80, disambiguated: 2, skipped_null: 10, stale: 0 }
 ```
 
-`apply!` validates every `key` value before writing anything. If any key fails the `/\A[a-z][a-z0-9_]*\z/` check, it raises `RelabelError` and leaves the PDF untouched.
+If you've already compiled an engine for this PDF (for example to also call `Schema.infer`), pass it in to avoid a second compile pass:
+
+```ruby
+engine = AcroForge::Engine.new("form.pdf")
+engine.compile!
+
+schema = AcroForge::Schema.infer("form.pdf", engine: engine)
+AcroForge::Relabeler.propose("form.pdf", out: "mapping.yml", schema: schema, engine: engine)
+```
+
+`apply!` validates every `key` value before writing anything. If any key fails the `/\A[a-z][a-z0-9_]*\z/` check, it raises `RelabelError` and leaves the PDF untouched. Collisions (two entries with the same key) are auto-disambiguated with `_1`, `_2` suffixes; the result's `disambiguated` counter tells you how many fields ended up suffixed. Stale entries (mapping keys that don't match any field in the PDF) emit warnings to `$stderr` and are counted in `stale`.
 
 ### `AcroForge::Validator`
 
 Validates individual values against AcroForge field types.
 
 ```ruby
-# Validate individual values.
 AcroForge::Validator.valid?("alice@example.com", :email)  # => true
 AcroForge::Validator.valid?("not a date", :date)          # => false
 ```
@@ -82,4 +100,25 @@ Supported types: `string`, `select`, `boolean`, `money`, `date`, `email`, `numbe
 - `AcroForge::ValidationError`: raised by `Engine#validate_payload!` on type mismatch.
 - `AcroForge::RelabelError`: raised by `Relabeler.apply!` on malformed mapping YAML, invalid key names, or missing AcroForm.
 
-Both errors inherit from `AcroForge::Error` so you can rescue either with a single `rescue AcroForge::Error`.
+Both errors inherit from `StandardError`. The CLI translates them to exit code `2` (validation errors) versus `1` (user errors like missing files); embedding callers can rescue them directly.
+
+## Suppressing engine output
+
+`Engine#compile!` prints per-field reasoning to stdout (`[Auto-Mapped]`, `[Failed]`, etc.) which is useful for debugging but noisy in production. The CLI silences this by default and re-enables it under `--verbose`. Library callers can do the same by redirecting `$stdout` temporarily:
+
+```ruby
+def silenced
+  orig = $stdout
+  null = File.open(File::NULL, "w")
+  $stdout = null
+  yield
+ensure
+  $stdout = orig
+  null&.close
+end
+
+silenced do
+  engine.compile!
+  AcroForge::Schema.infer("form.pdf", engine: engine)
+end
+```

@@ -3,6 +3,7 @@
 require "yaml"
 require "json"
 require_relative "engine"
+require_relative "labels"
 
 module AcroForge
   module Schema
@@ -91,12 +92,20 @@ module AcroForge
       result
     end
 
-    def infer(pdf_path, sections: [])
+    # Infer a schema from a PDF.
+    #
+    # If `engine:` is given, the caller has already compiled an engine and
+    # we use its proposals directly. This lets callers (notably the CLI's
+    # `bootstrap` subcommand) avoid a redundant second compile when they
+    # also want to call Relabeler.propose on the same PDF.
+    def infer(pdf_path, sections: [], engine: nil)
+      return aggregate_proposals(engine.field_proposals) if engine
+
       require "tmpdir"
       Dir.mktmpdir do |tmp|
-        engine = AcroForge::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
-        engine.compile!
-        aggregate_proposals(engine.field_proposals)
+        e = AcroForge::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
+        e.compile!
+        aggregate_proposals(e.field_proposals)
       end
     end
 
@@ -117,31 +126,12 @@ module AcroForge
       end
     end
 
-    # Apply the same typo corrections used for key sanitization back to the
-    # human-readable label. PDF text extraction often splits words across
-    # multiple text objects ("Tax Identi fi cation No."); this method derives
-    # match patterns from Constants::TYPO_PHRASE_REPLACEMENTS and produces
-    # the corrected human form ("Tax Identification No.").
+    # Thin delegator. The real implementation lives in AcroForge::Labels so
+    # the Engine can apply it at the source (right after the spatial heuristic
+    # picks a label) without creating a circular require between engine.rb
+    # and schema.rb.
     def humanize_label(label)
-      return label unless label.is_a?(String) && !label.empty?
-
-      result = label.dup
-      AcroForge::Constants::TYPO_PHRASE_REPLACEMENTS.each do |bad, good|
-        parts = bad.split("_").reject(&:empty?).map { |p| Regexp.escape(p) }
-        next if parts.empty?
-        pattern = /\b#{parts.join('\s+')}\b/i
-        result = result.gsub(pattern) do |match|
-          replacement = good.tr("_", " ")
-          # Preserve initial capitalization so titles like "Identification" stay
-          # capitalized in headings.
-          if match[0] == match[0].upcase
-            replacement[0].upcase + (replacement[1..] || "")
-          else
-            replacement
-          end
-        end
-      end
-      result.gsub(/\s+/, " ").strip
+      AcroForge::Labels.humanize(label)
     end
 
     def infer_type(proposal)

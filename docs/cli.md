@@ -3,11 +3,11 @@
 ## Synopsis
 
 ```
-acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c]
-acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite]
-acroforge relabel apply <pdf> <mapping.yml>
+acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
+acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
+acroforge relabel apply <pdf> <mapping.yml> [-v]
 acroforge compile <pdf>          [--schema schema.yml]
-acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml]
+acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml] [-v]
 acroforge version
 acroforge help
 ```
@@ -22,13 +22,26 @@ acroforge help
 | `compile` | Diagnostic: runs the engine and prints mapped/unmapped counts. Useful for checking heuristic coverage without writing any files. |
 | `bootstrap` | Convenience: `schema infer` + `relabel propose` in one call. |
 
+## Verbose mode
+
+By default, `bootstrap`, `schema infer`, `relabel propose`, and `relabel apply` print only a one-line summary of what they did. Pass `-v` or `--verbose` to also see the engine's per-field reasoning on stdout:
+
+```
+   [Auto-Mapped] 'Full Name' -> :full_name
+   [Auto-Mapped] 'Tax Identification No.' -> :tax_identification_no
+   ...
+   [Failed] Could not find a text label for field: Image1_af_image
+```
+
+`compile` always prints the engine output. That's its purpose.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Success |
 | `1` | User error (bad arguments, missing file) |
-| `2` | Validation error |
+| `2` | Validation error (`ValidationError`, `RelabelError`) |
 | `3` | Internal error |
 
 ---
@@ -44,6 +57,12 @@ acroforge schema infer application.pdf --out schema.yml --sections "Personal Det
 
 Use `--sections` to restrict heuristic scoring to specific section headings visible in the PDF. This narrows the candidate label pool and improves accuracy on dense forms.
 
+On success, prints a one-line summary:
+
+```
+Wrote schema.yml: 14 canonical keys inferred.
+```
+
 ---
 
 ## `relabel propose`
@@ -54,9 +73,17 @@ Generates a per-field YAML mapping file proposing a semantic rename for every Ac
 acroforge relabel propose broken_form.pdf --schema schema.yml --out mapping.yml
 ```
 
-**`--merge` (default):** If `mapping.yml` already exists, preserves any `key` or `type` values you've hand-edited and only overwrites the fields that are still unresolved.
+**`--merge` (default):** If `mapping.yml` already exists, preserves any `key` or `type` values you've hand-edited and only refreshes the advisory `meta:` blocks.
 
 **`--overwrite`:** Regenerates the mapping file from scratch, discarding any manual edits.
+
+On success, prints:
+
+```
+Wrote mapping.yml: 82 of 92 fields proposed; 10 need manual review.
+```
+
+The "need manual review" count is the number of fields where the heuristic found no nearby label and left `key: ~`. Those are the rows you fill in by hand before running `relabel apply`.
 
 ---
 
@@ -70,29 +97,50 @@ acroforge relabel apply broken_form.pdf mapping.yml
 
 If two fields resolve to the same key, `apply` auto-disambiguates by appending `_1`, `_2`, etc. (`full_name`, `full_name_1`). If a `key` value fails validation (must match `/\A[a-z][a-z0-9_]*\z/`), `apply` raises `RelabelError` and writes nothing. The PDF is left untouched.
 
+On success, prints a one-line summary:
+
+```
+Applied to broken_form.pdf: 7 renamed, 2 disambiguated, 91 skipped (no key).
+```
+
+Possible summary parts:
+
+- `N renamed` — fields whose names were rewritten.
+- `N disambiguated` — of those, how many got `_1`/`_2`/... appended because of key collisions.
+- `N skipped (no key)` — entries with `key: ~` were left alone.
+- `N stale` — entries whose PDF field name no longer exists in the source PDF. Also surfaces individual `acroforge: stale entry ...` warnings on stderr.
+
 ---
 
 ## `compile`
 
-Diagnostic command. Runs the engine pipeline and prints a summary of how many fields were mapped, how many remain unmapped, and which schema keys had no match. Does not write any files.
+Diagnostic command. Runs the engine pipeline and prints how many fields were mapped versus unmapped. Does not write any files.
 
 ```bash
 acroforge compile application.pdf --schema schema.yml
+# Mapped: 65, Unmapped: 5
 ```
 
-Use this after editing your schema to check heuristic coverage before committing to a full `relabel propose` run.
+Use this after editing your schema to check heuristic coverage before committing to a full `relabel propose` run. Unlike the other subcommands, `compile` always prints the engine's per-field log — that's its purpose.
 
 ---
 
 ## `bootstrap`
 
-Convenience wrapper that runs `schema infer` followed by `relabel propose` in a single call. Useful when starting from scratch with a new PDF.
+Convenience wrapper that runs `schema infer` followed by `relabel propose` against the same compile pass. Useful when starting from scratch with a new PDF.
 
 ```bash
 acroforge bootstrap broken_form.pdf
 # writes schema.yml and mapping.yml in the current directory
 
 acroforge bootstrap broken_form.pdf --schema-out my_schema.yml --mapping-out my_mapping.yml
+```
+
+Unlike running `schema infer` and `relabel propose` sequentially, `bootstrap` only compiles the engine once. In verbose mode you see the engine log once, not twice. On success, prints both summaries:
+
+```
+Wrote schema.yml: 14 canonical keys inferred.
+Wrote mapping.yml: 82 of 92 fields proposed; 10 need manual review.
 ```
 
 ---
@@ -103,7 +151,7 @@ Prints the installed AcroForge version and exits.
 
 ```bash
 acroforge version
-# => AcroForge 0.1.0
+# 0.1.0
 ```
 
 ---
@@ -114,5 +162,4 @@ Prints usage information for all subcommands.
 
 ```bash
 acroforge help
-acroforge help relabel propose
 ```

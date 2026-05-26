@@ -201,15 +201,22 @@ module AcroForge
       raise ArgumentError, "missing <pdf> argument" if pdf.nil?
       raise Errno::ENOENT, pdf unless File.exist?(pdf)
 
-      schema = silenced(verbose: verbose) { AcroForge::Schema.infer(pdf) }
-      AcroForge::Schema.dump(schema, schema_out)
-      count = schema.size
-      puts "Wrote #{schema_out}: #{count} canonical key#{"s" unless count == 1} inferred."
+      # Run the engine ONCE. Schema.infer and Relabeler.propose both accept
+      # an `engine:` kwarg so they reuse the same compile pass instead of
+      # each running their own (which would print the verbose chatter twice).
+      require "tmpdir"
+      Dir.mktmpdir do |tmp|
+        engine = AcroForge::Engine.new(pdf, normalized_dir: tmp)
+        silenced(verbose: verbose) { engine.compile! }
 
-      result = silenced(verbose: verbose) do
-        AcroForge::Relabeler.propose(pdf, out: mapping_out, schema: schema, mode: :overwrite)
+        schema = AcroForge::Schema.infer(pdf, engine: engine)
+        AcroForge::Schema.dump(schema, schema_out)
+        count = schema.size
+        puts "Wrote #{schema_out}: #{count} canonical key#{"s" unless count == 1} inferred."
+
+        result = AcroForge::Relabeler.propose(pdf, out: mapping_out, schema: schema, mode: :overwrite, engine: engine)
+        summarize_propose(result)
       end
-      summarize_propose(result)
       EXIT_OK
     end
   end

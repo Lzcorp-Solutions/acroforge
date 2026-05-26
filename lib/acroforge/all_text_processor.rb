@@ -18,7 +18,13 @@ module AcroForge
     end
 
     def text_chunks
-      merge_fragments(@raw_chunks)
+      merged = merge_fragments(@raw_chunks)
+      # merge_fragments joins adjacent chunks with a literal " ", which can
+      # produce strings like "M o d e O f R e p a y m e n t" when the PDF
+      # rendered each glyph as a separate text object. Re-run normalization
+      # on the merged result so the spaced-letter collapse and other fragment
+      # fixes get a second chance to fire on the joined text.
+      merged.map { |c| c.merge(text: normalize_extracted_text(c[:text])) }
     end
 
     private
@@ -49,6 +55,17 @@ module AcroForge
 
       # Collapse only clear spaced-letter sequences like "C u s t o m e r".
       str = str.gsub(/\b(?:\p{L}\s+){2,}\p{L}\b/) { |m| m.gsub(/\s+/, "") }
+
+      # Collapsing strips ALL whitespace, so a sequence like
+      # "L o a n T e n o r A p p r o v e d" becomes "LoanTenorApproved".
+      # Recover the word breaks from the surviving capital letters.
+      str = str.gsub(/([a-z])([A-Z])/, '\1 \2')
+
+      # PDFs often render punctuation as separate text objects too, so we end
+      # up with "( ForDisbursement )" or "No ." once everything else collapses.
+      # Tighten the spacing around those.
+      str = str.gsub(/\(\s+/, "(").gsub(/\s+\)/, ")")
+      str = str.gsub(/(\w)\s+([.,;:!?])/, '\1\2')
 
       # Merge split fragments that commonly appear in broken PDF extraction,
       # e.g. "c ertify", "h as", "th at", "o ther".

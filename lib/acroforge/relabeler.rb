@@ -82,28 +82,39 @@ module AcroForge
       end
     end
 
-    def propose(pdf_path, out:, schema: {}, mode: :merge)
+    # Write a mapping YAML proposing semantic names for every AcroForm field.
+    #
+    # If `engine:` is given, the caller has already compiled an engine and
+    # we use its proposals directly (no second compile). This lets callers
+    # like the CLI's `bootstrap` subcommand share one compile pass with
+    # Schema.infer instead of running the engine twice.
+    def propose(pdf_path, out:, schema: {}, mode: :merge, engine: nil)
       existing = (mode == :merge && File.exist?(out)) ? YAML.load_file(out) : nil
 
-      Dir.mktmpdir do |tmp|
-        engine = AcroForge::Engine.new(pdf_path, schema: schema, normalized_dir: tmp)
-        engine.compile!
-
-        sorted = engine.field_proposals.sort_by { |p| [p[:page], -p[:y], p[:x]] }
-        entries = sorted.each_with_object({}) do |p, acc|
-          acc[p[:pdf_field_name]] = build_entry(p, existing&.[](p[:pdf_field_name]))
+      proposals = if engine
+        engine.field_proposals
+      else
+        Dir.mktmpdir do |tmp|
+          e = AcroForge::Engine.new(pdf_path, schema: schema, normalized_dir: tmp)
+          e.compile!
+          e.field_proposals
         end
-
-        File.write(out, render_yaml(pdf_path, entries))
-
-        mapped = entries.values.count { |e| !e["key"].nil? && !e["key"].to_s.empty? }
-        {
-          total: entries.size,
-          mapped: mapped,
-          unmapped: entries.size - mapped,
-          out_path: out
-        }
       end
+
+      sorted = proposals.sort_by { |p| [p[:page], -p[:y], p[:x]] }
+      entries = sorted.each_with_object({}) do |p, acc|
+        acc[p[:pdf_field_name]] = build_entry(p, existing&.[](p[:pdf_field_name]))
+      end
+
+      File.write(out, render_yaml(pdf_path, entries))
+
+      mapped = entries.values.count { |e| !e["key"].nil? && !e["key"].to_s.empty? }
+      {
+        total: entries.size,
+        mapped: mapped,
+        unmapped: entries.size - mapped,
+        out_path: out
+      }
     end
 
     def build_entry(proposal, prior)

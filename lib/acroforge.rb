@@ -8,6 +8,7 @@ module AcroForge
 end
 
 require_relative "acroforge/all_text_processor"
+require_relative "acroforge/labels"
 require_relative "acroforge/validator"
 require_relative "acroforge/engine"
 require_relative "acroforge/schema"
