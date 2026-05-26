@@ -3,6 +3,7 @@
 require "yaml"
 require "tmpdir"
 require "time"
+require "hexapdf"
 require_relative "engine"
 require_relative "schema"
 require_relative "version"
@@ -12,6 +13,55 @@ module AcroForge
 
   module Relabeler
     module_function
+
+    KEY_REGEX = /\A[a-z][a-z0-9_]*\z/
+
+    def apply!(pdf_path, mapping_path)
+      data = YAML.load_file(mapping_path) || {}
+      entries = data.reject { |k, _| k.to_s.start_with?("_") }
+
+      validate!(entries)
+
+      doc = HexaPDF::Document.open(pdf_path)
+      form = doc.acro_form(create: false)
+      raise RelabelError, "PDF has no AcroForm: #{pdf_path}" unless form
+
+      claimed = {}
+      entries.each do |pdf_name, entry|
+        key = entry["key"]
+        next if key.nil? || key.to_s.empty?
+
+        field = form.field_by_name(pdf_name)
+        unless field
+          warn "acroforge: stale entry — #{pdf_name.inspect} not found in PDF (skipping)"
+          next
+        end
+
+        target = key.to_s
+        counter = 1
+        while claimed.key?(target)
+          target = "#{key}_#{counter}"
+          counter += 1
+        end
+        claimed[target] = true
+
+        field[:T] = target
+        field[:TU] = target
+      end
+
+      doc.write(pdf_path)
+    end
+
+    def validate!(entries)
+      entries.each do |pdf_name, entry|
+        raise RelabelError, "reserved sentinel: #{pdf_name.inspect}" if pdf_name.to_s.start_with?("_")
+        key = entry["key"]
+        next if key.nil? || key.to_s.empty?
+        unless key.to_s.match?(KEY_REGEX)
+          raise RelabelError, "invalid key #{key.inspect} for field #{pdf_name.inspect} — must match #{KEY_REGEX.inspect}"
+        end
+      end
+    end
 
     def propose(pdf_path, out:, schema: {}, mode: :merge)
       existing = (mode == :merge && File.exist?(out)) ? YAML.load_file(out) : nil

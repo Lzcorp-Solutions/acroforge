@@ -3,6 +3,8 @@
 require "spec_helper"
 require "tmpdir"
 require "yaml"
+require "fileutils"
+require "stringio"
 require "acroforge"
 
 RSpec.describe AcroForge::Relabeler do
@@ -77,6 +79,97 @@ RSpec.describe AcroForge::Relabeler do
 
       reloaded = YAML.load_file(out_path)
       expect(reloaded[first_pdf_key]["key"]).not_to eq("manually_edited_name")
+    end
+  end
+
+  describe ".apply!" do
+    it "renames AcroForm fields to the keys specified in the mapping" do
+      pdf_copy = File.join(@tmp, "pdf.pdf")
+      FileUtils.cp(garbage_fixture, pdf_copy)
+      mapping = File.join(@tmp, "mapping.yml")
+
+      File.write(mapping, YAML.dump({
+        "_meta" => {"source_pdf" => pdf_copy},
+        "page0_field6" => {"key" => "full_name", "type" => "string"}
+      }))
+
+      silence_stdout { described_class.apply!(pdf_copy, mapping) }
+
+      require "hexapdf"
+      doc = HexaPDF::Document.open(pdf_copy)
+      names = doc.acro_form.each_field.map(&:full_field_name)
+      expect(names).to include("full_name")
+      expect(names).not_to include("page0_field6")
+    end
+
+    it "auto-disambiguates collisions with _1, _2 suffixes" do
+      pdf_copy = File.join(@tmp, "pdf.pdf")
+      FileUtils.cp(garbage_fixture, pdf_copy)
+      mapping = File.join(@tmp, "mapping.yml")
+
+      File.write(mapping, YAML.dump({
+        "page0_field6" => {"key" => "full_name", "type" => "string"},
+        "page0_field28" => {"key" => "full_name", "type" => "string"}
+      }))
+
+      silence_stdout { described_class.apply!(pdf_copy, mapping) }
+
+      require "hexapdf"
+      doc = HexaPDF::Document.open(pdf_copy)
+      names = doc.acro_form.each_field.map(&:full_field_name)
+      expect(names).to include("full_name")
+      expect(names).to include("full_name_1")
+    end
+
+    it "skips entries with null key" do
+      pdf_copy = File.join(@tmp, "pdf.pdf")
+      FileUtils.cp(garbage_fixture, pdf_copy)
+      mapping = File.join(@tmp, "mapping.yml")
+
+      File.write(mapping, YAML.dump({
+        "page0_field6" => {"key" => nil, "type" => nil}
+      }))
+
+      silence_stdout { described_class.apply!(pdf_copy, mapping) }
+
+      require "hexapdf"
+      doc = HexaPDF::Document.open(pdf_copy)
+      names = doc.acro_form.each_field.map(&:full_field_name)
+      expect(names).to include("page0_field6")
+    end
+
+    it "raises RelabelError when a key fails the regex" do
+      pdf_copy = File.join(@tmp, "pdf.pdf")
+      FileUtils.cp(garbage_fixture, pdf_copy)
+      mapping = File.join(@tmp, "mapping.yml")
+
+      File.write(mapping, YAML.dump({
+        "page0_field6" => {"key" => "1_invalid_start", "type" => "string"}
+      }))
+
+      expect {
+        silence_stdout { described_class.apply!(pdf_copy, mapping) }
+      }.to raise_error(AcroForge::RelabelError, /key/)
+    end
+
+    it "warns on stale entries but does not raise" do
+      pdf_copy = File.join(@tmp, "pdf.pdf")
+      FileUtils.cp(garbage_fixture, pdf_copy)
+      mapping = File.join(@tmp, "mapping.yml")
+
+      File.write(mapping, YAML.dump({
+        "nonexistent_field_name" => {"key" => "foo", "type" => "string"}
+      }))
+
+      stderr_io = StringIO.new
+      orig = $stderr
+      $stderr = stderr_io
+      begin
+        silence_stdout { described_class.apply!(pdf_copy, mapping) }
+      ensure
+        $stderr = orig
+      end
+      expect(stderr_io.string).to match(/stale|not found|missing/i)
     end
   end
 end
