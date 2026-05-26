@@ -10,3 +10,4 @@ end
 require_relative "form_stencil/all_text_processor"
 require_relative "form_stencil/validator"
 require_relative "form_stencil/engine"
+require_relative "form_stencil/schema"
