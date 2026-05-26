@@ -4,5 +4,6 @@ require_relative "form_stencil/version"
 
 module FormStencil
   class Error < StandardError; end
-  # Your code goes here...
 end
+
+require_relative "form_stencil/all_text_processor"
