@@ -7,3 +7,4 @@ module FormStencil
 end
 
 require_relative "form_stencil/all_text_processor"
+require_relative "form_stencil/validator"
