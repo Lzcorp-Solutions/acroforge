@@ -106,14 +106,42 @@ module AcroForge
 
         key = p[:canonical_key].to_sym
         schema[key] ||= {type: infer_type(p), variations: []}
-        if p[:raw_label] && !schema[key][:variations].include?(p[:raw_label])
-          schema[key][:variations] << p[:raw_label]
+        if p[:raw_label]
+          cleaned = humanize_label(p[:raw_label])
+          schema[key][:variations] << cleaned unless schema[key][:variations].include?(cleaned)
         end
 
         if p[:pdf_field_type] == :button && p[:options]
           schema[key][:options] = p[:options].keys.map(&:to_sym).uniq
         end
       end
+    end
+
+    # Apply the same typo corrections used for key sanitization back to the
+    # human-readable label. PDF text extraction often splits words across
+    # multiple text objects ("Tax Identi fi cation No."); this method derives
+    # match patterns from Constants::TYPO_PHRASE_REPLACEMENTS and produces
+    # the corrected human form ("Tax Identification No.").
+    def humanize_label(label)
+      return label unless label.is_a?(String) && !label.empty?
+
+      result = label.dup
+      AcroForge::Constants::TYPO_PHRASE_REPLACEMENTS.each do |bad, good|
+        parts = bad.split("_").reject(&:empty?).map { |p| Regexp.escape(p) }
+        next if parts.empty?
+        pattern = /\b#{parts.join('\s+')}\b/i
+        result = result.gsub(pattern) do |match|
+          replacement = good.tr("_", " ")
+          # Preserve initial capitalization so titles like "Identification" stay
+          # capitalized in headings.
+          if match[0] == match[0].upcase
+            replacement[0].upcase + (replacement[1..] || "")
+          else
+            replacement
+          end
+        end
+      end
+      result.gsub(/\s+/, " ").strip
     end
 
     def infer_type(proposal)

@@ -130,4 +130,28 @@ RSpec.describe AcroForge::Schema do
       end
     end
   end
+
+  describe ".humanize_label" do
+    it "fixes typos derived from TYPO_PHRASE_REPLACEMENTS" do
+      expect(described_class.humanize_label("Tax Identi fi cation No.")).to eq("Tax Identification No.")
+      expect(described_class.humanize_label("Date of Con rmed Employment")).to eq("Date of Confirmed Employment")
+      expect(described_class.humanize_label("Na onal Insurance")).to eq("National Insurance")
+      expect(described_class.humanize_label("ModeOf Repayment")).to eq("Mode of Repayment")
+    end
+
+    it "preserves clean labels unchanged" do
+      expect(described_class.humanize_label("Full Name")).to eq("Full Name")
+      expect(described_class.humanize_label("Email Address")).to eq("Email Address")
+    end
+
+    it "returns the input unchanged for nil / empty / non-string" do
+      expect(described_class.humanize_label(nil)).to be_nil
+      expect(described_class.humanize_label("")).to eq("")
+      expect(described_class.humanize_label(:symbol)).to eq(:symbol)
+    end
+
+    it "collapses incidental whitespace" do
+      expect(described_class.humanize_label("Full   Name   ")).to eq("Full Name")
+    end
+  end
 end

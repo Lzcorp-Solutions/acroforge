@@ -114,7 +114,7 @@ module AcroForge
       type_value = prior&.key?("type") ? prior["type"] : proposed_type
 
       meta = {
-        "raw_label" => proposal[:raw_label],
+        "raw_label" => AcroForge::Schema.humanize_label(proposal[:raw_label]),
         "confidence" => proposal[:confidence].to_s,
         "section" => proposal[:section]&.to_s,
         "page" => proposal[:page]
