@@ -2,6 +2,7 @@
 
 require "yaml"
 require "json"
+require_relative "engine"
 
 module FormStencil
   module Schema
@@ -51,6 +52,49 @@ module FormStencil
       when Hash then value.each_with_object({}) { |(k, v), out| out[k.to_s] = deep_stringify_symbols(v) }
       when Array then value.map { |v| deep_stringify_symbols(v) }
       else value
+      end
+    end
+
+    def infer(pdf_path, sections: [])
+      require "tmpdir"
+      Dir.mktmpdir do |tmp|
+        engine = FormStencil::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
+        engine.compile!
+        aggregate_proposals(engine.field_proposals)
+      end
+    end
+
+    def aggregate_proposals(proposals)
+      proposals.each_with_object({}) do |p, schema|
+        next if p[:canonical_key].nil?
+
+        key = p[:canonical_key].to_sym
+        schema[key] ||= {type: infer_type(p), variations: []}
+        if p[:raw_label] && !schema[key][:variations].include?(p[:raw_label])
+          schema[key][:variations] << p[:raw_label]
+        end
+
+        if p[:pdf_field_type] == :button && p[:options]
+          schema[key][:options] = p[:options].keys.map(&:to_sym).uniq
+        end
+      end
+    end
+
+    def infer_type(proposal)
+      case proposal[:pdf_field_type]
+      when :button
+        ((proposal[:options]&.size || 0) > 1) ? :select : :boolean
+      when :choice
+        :select
+      else
+        label = proposal[:raw_label].to_s.downcase
+        case label
+        when /amount|salary|income|balance|fee|tier3/ then :money
+        when /\bdate\b|birth|expiry|employed/ then :date
+        when /email/ then :email
+        when /years|tenor|number of|\bno\.?\b/ then :number
+        else :string
+        end
       end
     end
 

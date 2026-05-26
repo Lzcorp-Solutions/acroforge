@@ -80,4 +80,24 @@ RSpec.describe FormStencil::Schema do
       expect(result[:full_name]).to eq(type: :string, variations: ["First Name"])
     end
   end
+
+  describe ".infer" do
+    let(:semantic_fixture) { File.expand_path("../fixtures/semantic_named.pdf", __dir__) }
+
+    it "produces a non-empty rich-form schema from a PDF" do
+      result = silence_stdout { described_class.infer(semantic_fixture) }
+      expect(result).to be_a(Hash)
+      expect(result).not_to be_empty
+      first_entry = result.values.first
+      expect(first_entry).to include(:type, :variations)
+      expect(first_entry[:variations]).to be_an(Array)
+    end
+
+    it "aggregates duplicate raw labels into one entry per canonical key" do
+      result = silence_stdout { described_class.infer(semantic_fixture) }
+      result.each_value do |entry|
+        expect(entry[:variations]).to eq(entry[:variations].uniq)
+      end
+    end
+  end
 end
