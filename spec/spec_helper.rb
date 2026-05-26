@@ -13,3 +13,12 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 end
+
+def silence_stdout
+  orig = $stdout
+  $stdout = File.open(File::NULL, "w")
+  yield
+ensure
+  $stdout.close if $stdout && !$stdout.closed?
+  $stdout = orig
+end
