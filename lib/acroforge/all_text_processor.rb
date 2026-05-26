@@ -2,7 +2,7 @@
 
 require "hexapdf"
 
-module FormStencil
+module AcroForge
   class AllTextProcessor < HexaPDF::Content::Processor
     def initialize
       super

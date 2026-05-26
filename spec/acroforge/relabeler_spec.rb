@@ -3,9 +3,9 @@
 require "spec_helper"
 require "tmpdir"
 require "yaml"
-require "form_stencil"
+require "acroforge"
 
-RSpec.describe FormStencil::Relabeler do
+RSpec.describe AcroForge::Relabeler do
   let(:garbage_fixture) { File.expand_path("../fixtures/garbage_named.pdf", __dir__) }
 
   around do |example|
@@ -22,7 +22,7 @@ RSpec.describe FormStencil::Relabeler do
 
       data = YAML.load_file(out_path)
       expect(data).to include("_meta")
-      expect(data["_meta"]).to include("source_pdf", "generated_at", "form_stencil_version", "total_fields")
+      expect(data["_meta"]).to include("source_pdf", "generated_at", "acroforge_version", "total_fields")
 
       entries = data.reject { |k, _| k.to_s.start_with?("_") }
       expect(entries).not_to be_empty

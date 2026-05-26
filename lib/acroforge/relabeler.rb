@@ -7,7 +7,7 @@ require_relative "engine"
 require_relative "schema"
 require_relative "version"
 
-module FormStencil
+module AcroForge
   class RelabelError < StandardError; end
 
   module Relabeler
@@ -17,7 +17,7 @@ module FormStencil
       existing = (mode == :merge && File.exist?(out)) ? YAML.load_file(out) : nil
 
       Dir.mktmpdir do |tmp|
-        engine = FormStencil::Engine.new(pdf_path, schema: schema, normalized_dir: tmp)
+        engine = AcroForge::Engine.new(pdf_path, schema: schema, normalized_dir: tmp)
         engine.compile!
 
         sorted = engine.field_proposals.sort_by { |p| [p[:page], -p[:y], p[:x]] }
@@ -75,7 +75,7 @@ module FormStencil
         "_meta" => {
           "source_pdf" => pdf_path,
           "generated_at" => Time.now.utc.iso8601,
-          "form_stencil_version" => FormStencil::VERSION,
+          "acroforge_version" => AcroForge::VERSION,
           "total_fields" => entries.size
         }
       }

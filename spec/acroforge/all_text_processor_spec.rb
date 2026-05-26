@@ -2,9 +2,9 @@
 
 require "spec_helper"
 require "hexapdf"
-require "form_stencil/all_text_processor"
+require "acroforge/all_text_processor"
 
-RSpec.describe FormStencil::AllTextProcessor do
+RSpec.describe AcroForge::AllTextProcessor do
   let(:fixture_path) { File.expand_path("../fixtures/semantic_named.pdf", __dir__) }
 
   it "extracts text chunks from a PDF page" do

@@ -2,9 +2,9 @@
 
 require "spec_helper"
 require "tmpdir"
-require "form_stencil"
+require "acroforge"
 
-RSpec.describe FormStencil::Engine do
+RSpec.describe AcroForge::Engine do
   let(:semantic_fixture) { File.expand_path("../fixtures/semantic_named.pdf", __dir__) }
 
   around do |example|
@@ -98,7 +98,7 @@ RSpec.describe FormStencil::Engine do
 
       expect {
         engine.validate_payload!({amount_requested: "not a number"})
-      }.to raise_error(FormStencil::ValidationError)
+      }.to raise_error(AcroForge::ValidationError)
     end
   end
 end

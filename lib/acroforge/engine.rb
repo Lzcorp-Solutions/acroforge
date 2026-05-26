@@ -9,7 +9,7 @@ require_relative "all_text_processor"
 require_relative "validator"
 require_relative "constants"
 
-module FormStencil
+module AcroForge
   class Engine
     attr_reader :template_path, :schema, :overrides, :sections, :normalized_path,
       :mapped_fields, :unmapped_fields, :filled_fields, :missing_fields,
@@ -580,7 +580,7 @@ module FormStencil
     def fix_token_typos(key)
       normalized = key.dup
 
-      FormStencil::Constants::TYPO_PHRASE_REPLACEMENTS.each do |from, to|
+      AcroForge::Constants::TYPO_PHRASE_REPLACEMENTS.each do |from, to|
         normalized = normalized.gsub(from, to)
       end
 
@@ -727,10 +727,10 @@ module FormStencil
 
         allowed_options = (schema_options + pdf_options).uniq
 
-        unless FormStencil::Validator.valid?(value, type, allowed_options)
+        unless AcroForge::Validator.valid?(value, type, allowed_options)
           msg = "Validation failed for field :#{key} (base: :#{base_key}): Expected #{type}, got '#{value}'."
           msg += " (Allowed options: #{allowed_options.join(", ")})" if type == :select
-          raise FormStencil::ValidationError, msg
+          raise AcroForge::ValidationError, msg
         end
       end
     end

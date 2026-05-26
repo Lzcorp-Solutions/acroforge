@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "form_stencil/schema"
+require "acroforge/schema"
 require "tmpdir"
 require "yaml"
 
-RSpec.describe FormStencil::Schema do
+RSpec.describe AcroForge::Schema do
   describe ".normalize" do
     it "upgrades legacy {key => [variations]} to rich form" do
       legacy = {full_name: ["First Name", "Surname"], dob: ["Date of Birth"]}

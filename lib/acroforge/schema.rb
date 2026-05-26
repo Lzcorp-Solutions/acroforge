@@ -4,7 +4,7 @@ require "yaml"
 require "json"
 require_relative "engine"
 
-module FormStencil
+module AcroForge
   module Schema
     module_function
 
@@ -58,7 +58,7 @@ module FormStencil
     def infer(pdf_path, sections: [])
       require "tmpdir"
       Dir.mktmpdir do |tmp|
-        engine = FormStencil::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
+        engine = AcroForge::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
         engine.compile!
         aggregate_proposals(engine.field_proposals)
       end

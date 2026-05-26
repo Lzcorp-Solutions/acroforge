@@ -3,7 +3,7 @@
 require "date"
 require "uri"
 
-module FormStencil
+module AcroForge
   class ValidationError < StandardError; end
 
   module Validator

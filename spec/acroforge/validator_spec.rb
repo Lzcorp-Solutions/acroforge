@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "form_stencil/validator"
+require "acroforge/validator"
 
-RSpec.describe FormStencil::Validator do
+RSpec.describe AcroForge::Validator do
   describe ".valid?" do
     it "passes nil and empty string for any type" do
       expect(described_class.valid?(nil, :money)).to be true

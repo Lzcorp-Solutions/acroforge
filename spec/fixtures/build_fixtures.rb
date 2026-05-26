@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Regenerable synthetic fixture PDFs for FormStencil specs.
+# Regenerable synthetic fixture PDFs for AcroForge specs.
 # Run from the gem root: ruby spec/fixtures/build_fixtures.rb
 #
 # Produces four fixtures used across the spec suite:

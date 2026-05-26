@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-require_relative "lib/form_stencil/version"
+require_relative "lib/acroforge/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "form_stencil"
-  spec.version = FormStencil::VERSION
+  spec.name = "acroforge"
+  spec.version = AcroForge::VERSION
   spec.authors = ["Petra"]
   spec.email = ["hello@cropdoor.com"]
 
   spec.summary = "PDF AcroForm engine with heuristic-assisted field relabeling."
   spec.description = "Compile, fill, and relabel garbage-named AcroForm PDFs through a spatial heuristic and a human-reviewed mapping file."
-  spec.homepage = "https://github.com/petra/form_stencil"
+  spec.homepage = "https://github.com/petra/acroforge"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.7"
 
@@ -25,7 +25,7 @@ Gem::Specification.new do |spec|
   end
 
   spec.bindir = "exe"
-  spec.executables = ["form_stencil"]
+  spec.executables = ["acroforge"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "hexapdf", "~> 1.0"

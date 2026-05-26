@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module FormStencil
+module AcroForge
   module Constants
     TYPO_PHRASE_REPLACEMENTS = {
       "identi_fi_cation" => "identification",
