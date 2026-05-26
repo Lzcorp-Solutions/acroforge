@@ -30,6 +30,12 @@ RSpec.describe FormStencil::Relabeler do
       first = entries.values.first
       expect(first).to include("key", "type", "meta")
       expect(first["meta"]).to include("raw_label", "confidence", "section", "page")
+
+      # Entry keys must be the ORIGINAL PDF field names (page0_fieldX),
+      # not the semantic names assigned by the heuristic.
+      pdf_field_names_in_mapping = entries.keys
+      expect(pdf_field_names_in_mapping).to all(match(/^page\d+_field\d+$/))
+      expect(pdf_field_names_in_mapping).to include("page0_field6", "page0_field28")
     end
 
     it "sorts entries by page, then y (top-to-bottom), then x (left-to-right)" do

@@ -124,6 +124,8 @@ module FormStencil
 
         next unless page_index
 
+        original_field_name = field.full_field_name
+
         is_btn = field.is_a?(HexaPDF::Type::AcroForm::ButtonField) || field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
         is_radio_group = is_btn && field.each_widget.count > 1
 
@@ -224,8 +226,8 @@ module FormStencil
         # the original PDF field names (strings like "page0_field6"). When an
         # override exists, map the PDF field to the semantic :key declared in the
         # override (e.g. :full_name) so downstream validation uses semantic keys.
-        override_key_used = @overrides.key?(field.full_field_name.to_s) ? field.full_field_name.to_s : field.full_field_name.to_sym
-        override_entry = @overrides[field.full_field_name.to_s] || @overrides[field.full_field_name.to_sym]
+        override_key_used = @overrides.key?(original_field_name.to_s) ? original_field_name.to_s : original_field_name.to_sym
+        override_entry = @overrides[original_field_name.to_s] || @overrides[original_field_name.to_sym]
         if override_entry
           semantic_name = override_entry[:key] || override_key_used
           mapped_semantic = semantic_name.to_sym
@@ -239,13 +241,13 @@ module FormStencil
             counter += 1
           end
 
-          puts "   [Override] '#{field.full_field_name}' -> :#{target_key} (Override)"
+          puts "   [Override] '#{original_field_name}' -> :#{target_key} (Override)"
         elsif raw_label
           base_key = sanitize_key(raw_label)
           unless base_key
-            @unmapped_fields << field.full_field_name
+            @unmapped_fields << original_field_name
             @field_proposals << {
-              pdf_field_name: field.full_field_name,
+              pdf_field_name: original_field_name,
               pdf_field_type: case field
                               when HexaPDF::Type::AcroForm::TextField then :text
                               when HexaPDF::Type::AcroForm::ButtonField then :button
@@ -261,7 +263,7 @@ module FormStencil
               x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
               options: options_map
             }
-            puts "   [Failed] Could not derive a valid key for field: #{field.full_field_name}"
+            puts "   [Failed] Could not derive a valid key for field: #{original_field_name}"
             next
           end
 
@@ -290,9 +292,9 @@ module FormStencil
 
         if target_key
           field[:T] = target_key.to_s
-          @mapped_fields[field.full_field_name] = target_key
+          @mapped_fields[original_field_name] = target_key
           @field_proposals << {
-            pdf_field_name: field.full_field_name,
+            pdf_field_name: original_field_name,
             pdf_field_type: case field
                             when HexaPDF::Type::AcroForm::TextField then :text
                             when HexaPDF::Type::AcroForm::ButtonField then :button
@@ -316,15 +318,15 @@ module FormStencil
           end
 
           prefix_notice = active_section ? "[#{active_section.upcase}] " : ""
-          puts "   [Auto-Mapped] #{prefix_notice}'#{raw_label || field.full_field_name}' -> :#{target_key}"
+          puts "   [Auto-Mapped] #{prefix_notice}'#{raw_label || original_field_name}' -> :#{target_key}"
 
           if is_btn && options_map && options_map.any?
             puts "      └─ Valid Options Hash: #{options_map.keys.inspect}"
           end
         else
-          @unmapped_fields << field.full_field_name
+          @unmapped_fields << original_field_name
           @field_proposals << {
-            pdf_field_name: field.full_field_name,
+            pdf_field_name: original_field_name,
             pdf_field_type: case field
                             when HexaPDF::Type::AcroForm::TextField then :text
                             when HexaPDF::Type::AcroForm::ButtonField then :button
@@ -340,7 +342,7 @@ module FormStencil
             x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
             options: options_map
           }
-          puts "   [Failed] Could not find a text label for field: #{field.full_field_name}"
+          puts "   [Failed] Could not find a text label for field: #{original_field_name}"
         end
       end
 
