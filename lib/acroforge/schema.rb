@@ -12,7 +12,9 @@ module AcroForge
     def load(path)
       raw = case File.extname(path).downcase
       when ".yml", ".yaml"
-        YAML.safe_load(File.read(path), permitted_classes: [Symbol], aliases: true)
+        # safe_load_file was added in Psych 4 (Ruby 3.1+); safe_load(File.read)
+        # keeps the gem usable on Ruby 2.7 as the gemspec advertises.
+        YAML.safe_load(File.read(path), permitted_classes: [Symbol], aliases: true) # standard:disable Style/YAMLFileRead
       when ".json"
         JSON.parse(File.read(path), symbolize_names: false)
       else
