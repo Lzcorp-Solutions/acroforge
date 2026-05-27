@@ -49,7 +49,7 @@ export default defineConfig({
     ],
 
     footer: {
-      message: 'Released under the MIT License · Ruby ≥ 2.7 · Built on HexaPDF',
+      message: 'Released under the MIT License.',
       copyright: `Copyright © 2026-present Maxwell Nana Forson`
     }
   }
