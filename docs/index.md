@@ -13,6 +13,7 @@ titleTemplate: false
       <div class="af-ctas">
         <a class="af-btn af-btn-primary" href="./quick-start">Get started</a>
         <a class="af-btn af-btn-ghost" href="./introduction">Read the manual</a>
+        <a class="af-btn af-btn-ghost" href="https://github.com/Lzcorp-Solutions/acroforge">GitHub ↗</a>
       </div>
     </div>
 <pre class="af-term"><span class="prompt">$</span> acroforge bootstrap form.pdf
@@ -29,32 +30,32 @@ titleTemplate: false
 <section class="af-section af-section--band">
   <div class="af-section-inner">
     <div class="af-section-num">01 / Pipeline</div>
-    <h2 class="af-section-title">Four steps. Each one <em>reviewable</em>.</h2>
-    <p class="af-section-sub">Heuristics are wrong sometimes. The pipeline produces an artifact at each stage so you can correct the machine before it touches the PDF.</p>
+    <h2 class="af-section-title">Small, focused commands. Each one <em>reviewable</em>.</h2>
+    <p class="af-section-sub">Each command does one job and produces an artifact you can inspect before the next step touches the PDF. Pick the ones you need.</p>
     <div class="af-pipeline">
       <div class="af-step">
         <div class="af-step-num">01</div>
-        <h3 class="af-step-name">Infer schema</h3>
-        <span class="af-step-cmd">schema infer</span>
-        <p class="af-step-desc">Heuristic walks the PDF and proposes a canonical schema of fields, types, and label variations.</p>
+        <h3 class="af-step-name">Prepare</h3>
+        <span class="af-step-cmd">prepare</span>
+        <p class="af-step-desc">Resolves PDF-internal conflicts (multiple fields sharing one name) using the heuristic's proposals. Optional: skips itself when there's nothing to resolve.</p>
       </div>
       <div class="af-step">
         <div class="af-step-num">02</div>
-        <h3 class="af-step-name">Propose mapping</h3>
-        <span class="af-step-cmd">relabel propose</span>
-        <p class="af-step-desc">One YAML row per field, sorted top-to-bottom. Override wrong guesses, leave the rest.</p>
+        <h3 class="af-step-name">Bootstrap</h3>
+        <span class="af-step-cmd">bootstrap</span>
+        <p class="af-step-desc">Infers a starter schema and proposes a per-field mapping in one compile pass. Output is two YAML files you review.</p>
       </div>
       <div class="af-step">
         <div class="af-step-num">03</div>
-        <h3 class="af-step-name">Apply rename</h3>
-        <span class="af-step-cmd">relabel apply</span>
-        <p class="af-step-desc">Rewrites the AcroForm dictionary in place. Collisions auto-disambiguate. PDF is permanently usable.</p>
+        <h3 class="af-step-name">Annotate</h3>
+        <span class="af-step-cmd">annotate</span>
+        <p class="af-step-desc">Renders a copy of the PDF with each field labeled inline, colour-coded against the mapping. Visual reference while you edit.</p>
       </div>
       <div class="af-step">
         <div class="af-step-num">04</div>
-        <h3 class="af-step-name">Fill</h3>
-        <span class="af-step-cmd">Engine#fill!</span>
-        <p class="af-step-desc">Pass a hash keyed by your semantic names. Validator enforces declared type contracts.</p>
+        <h3 class="af-step-name">Apply</h3>
+        <span class="af-step-cmd">relabel apply</span>
+        <p class="af-step-desc">Reads your edited mapping and permanently rewrites the AcroForm field names. Collisions auto-disambiguate. PDF is now usable.</p>
       </div>
     </div>
   </div>
@@ -77,8 +78,10 @@ titleTemplate: false
       </div>
       <div class="af-compare-card">
         <span class="af-compare-label af-compare-label--good">With AcroForge</span>
-<pre><span class="prompt">$</span> acroforge bootstrap form.pdf
-<span class="prompt">$</span> <span class="dim">$EDITOR mapping.yml</span>
+<pre><span class="prompt">$</span> acroforge prepare form.pdf
+<span class="prompt">$</span> acroforge bootstrap form.pdf
+<span class="prompt">$</span> acroforge annotate form.pdf <span class="dim">--mapping mapping.yml</span>
+<span class="prompt">$</span> <span class="dim">$EDITOR mapping.yml</span>  <span class="dim"># reviewing against annotated.pdf</span>
 <span class="prompt">$</span> acroforge relabel apply form.pdf mapping.yml
 <span class="ok">      done.</span></pre>
       </div>
@@ -89,8 +92,8 @@ titleTemplate: false
 <section class="af-section af-section--band">
   <div class="af-section-inner">
     <div class="af-section-num">03 / Capabilities</div>
-    <h2 class="af-section-title">Three things the engine does <em>well</em>.</h2>
-    <p class="af-section-sub">No icon-decorated feature grids. Just what AcroForge actually provides, plainly.</p>
+    <h2 class="af-section-title">What the engine does <em>well</em>.</h2>
+    <p class="af-section-sub">Discovery, review, rename, fill, plus the details that make those steps reliable on real-world PDFs.</p>
     <div class="af-features">
       <div class="af-feature">
         <div class="af-feature-num">01</div>
@@ -104,8 +107,23 @@ titleTemplate: false
       </div>
       <div class="af-feature">
         <div class="af-feature-num">03</div>
-        <h3 class="af-feature-name">Deterministic, schema-driven</h3>
-        <p class="af-feature-desc">Declare canonical fields once. The engine canonicalises vendor variations into one key set. Validator enforces type contracts. apply! never half-renames a PDF.</p>
+        <h3 class="af-feature-name">Visual review</h3>
+        <p class="af-feature-desc"><code>annotate</code> renders a copy of the PDF with each field labeled inline, colour-coded against your mapping. Green for confident proposals, amber for review-needed, gray for missing. Open it next to your editor.</p>
+      </div>
+      <div class="af-feature">
+        <div class="af-feature-num">04</div>
+        <h3 class="af-feature-name">Duplicate-name resolution</h3>
+        <p class="af-feature-desc">Some PDFs ship with three fields all literally named <code>date</code>. <code>prepare</code> spots them and rewrites each to a unique heuristic-proposed name before the mapping is generated, so the YAML stays clean.</p>
+      </div>
+      <div class="af-feature">
+        <div class="af-feature-num">05</div>
+        <h3 class="af-feature-name">Unicode-clean labels</h3>
+        <p class="af-feature-desc">Ligatures (ﬁ ﬂ ﬀ), curly quotes, en/em dashes, zero-width chars: NFKC plus a small substitution table normalize every extracted label so grep, search, and your mapping reviews all work on plain ASCII.</p>
+      </div>
+      <div class="af-feature">
+        <div class="af-feature-num">06</div>
+        <h3 class="af-feature-name">Schema-driven, deterministic</h3>
+        <p class="af-feature-desc">Declare canonical fields once. The engine canonicalises vendor variations into one key set. Validator enforces type contracts. <code>apply!</code> validates the whole mapping before touching the PDF, so it never half-renames anything.</p>
       </div>
     </div>
   </div>
@@ -121,12 +139,17 @@ titleTemplate: false
         <h3>Shell</h3>
 
 ```bash
+# Resolve duplicate AcroForm field names, if any
+acroforge prepare form.pdf
+
+# Infer schema + propose mapping in one compile pass
 acroforge bootstrap form.pdf
-acroforge schema infer form.pdf --out s.yml
-acroforge relabel propose form.pdf \
-  --schema s.yml --out m.yml
-acroforge relabel apply form.pdf m.yml
-acroforge compile form.pdf
+
+# Visual review: open annotated.pdf alongside mapping.yml
+acroforge annotate form.pdf --mapping mapping.yml
+
+# Apply your edited mapping to the PDF in place
+acroforge relabel apply form.pdf mapping.yml
 ```
 
 <a class="af-btn af-btn-light" href="./cli">CLI reference →</a>
@@ -138,15 +161,16 @@ acroforge compile form.pdf
 ```ruby
 require "acroforge"
 
+# Infer schema + propose mapping in one pass
 schema = AcroForge::Schema.infer("form.pdf")
-AcroForge::Schema.dump(schema, "s.yml")
+AcroForge::Schema.dump(schema, "schema.yml")
 
-AcroForge::Relabeler.propose("form.pdf",
-  out: "m.yml", schema: schema)
-AcroForge::Relabeler.apply!("form.pdf", "m.yml")
+# Visual review file colour-coded against the mapping
+AcroForge::Annotator.annotate("form.pdf",
+  mapping: "mapping.yml", out: "annotated.pdf")
 
-AcroForge::Engine.new("form.pdf",
-  schema: schema).fill!(payload, "out.pdf")
+# Apply mapping in place after review
+AcroForge::Relabeler.apply!("form.pdf", "mapping.yml")
 ```
 
 <a class="af-btn af-btn-light" href="./api">Library API →</a>

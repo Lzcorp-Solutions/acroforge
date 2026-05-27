@@ -226,8 +226,11 @@ body { font-family: var(--af-font-body); }
 /* Buttons — flat, restrained                                     */
 /* ============================================================== */
 
-a.af-btn,
-.af-btn {
+/* All button styles are scoped under .af-section so the selectors beat
+   VitePress's default `.vp-doc a` rule (specificity 0,1,1) cleanly.
+   `.af-section a.af-btn` is 0,2,1 — wins without needing !important. */
+
+.af-section .af-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -236,65 +239,90 @@ a.af-btn,
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: 2px;
-  text-decoration: none !important;
+  text-decoration: none;
   border: 1px solid transparent;
   line-height: 1;
   white-space: nowrap;
-  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-.af-btn-primary {
+.af-section .af-btn:hover { transform: translateY(-1px); }
+.af-section .af-btn:active { transform: translateY(0); }
+
+/* Primary: solid amber on the dark hero */
+.af-section .af-btn-primary {
   background: var(--af-accent);
-  color: var(--af-on-dark) !important;
+  color: var(--af-on-dark);
   border-color: var(--af-accent);
 }
 
-.af-btn-primary:hover {
+.af-section .af-btn-primary:hover {
   background: #9a3412;
   border-color: #9a3412;
+  box-shadow: 0 4px 12px -3px rgba(194, 65, 12, 0.45);
 }
 
-.af-btn-ghost {
+/* Ghost (dark bg): always-visible outline, brightens to amber on hover */
+.af-section .af-btn-ghost {
   background: transparent;
-  color: var(--af-on-dark) !important;
-  border-color: var(--af-border-dark);
+  color: var(--af-on-dark);
+  border-color: rgba(246, 241, 230, 0.4);
 }
 
-.af-btn-ghost:hover {
-  border-color: var(--af-on-dark-2);
-  color: var(--af-on-dark) !important;
+.af-section .af-btn-ghost:hover {
+  border-color: var(--af-accent);
+  color: var(--af-accent);
+  background: rgba(194, 65, 12, 0.08);
 }
 
-.af-btn-dark {
+/* Dark: solid charcoal on the light CTA */
+.af-section .af-btn-dark {
   background: var(--af-dark);
-  color: var(--af-on-dark) !important;
+  color: var(--af-on-dark);
   border-color: var(--af-dark);
 }
 
-.af-btn-dark:hover {
+.af-section .af-btn-dark:hover {
   background: var(--af-dark-2);
   border-color: var(--af-dark-2);
+  box-shadow: 0 4px 12px -3px rgba(20, 17, 13, 0.35);
 }
 
-.af-btn-light {
+.dark .af-section .af-btn-dark {
+  background: var(--af-on-dark);
+  color: var(--af-dark);
+  border-color: var(--af-on-dark);
+}
+
+.dark .af-section .af-btn-dark:hover {
+  background: var(--af-bg);
+  border-color: var(--af-bg);
+  box-shadow: 0 4px 12px -3px rgba(245, 243, 237, 0.25);
+}
+
+/* Light: visible outline on light bg, brightens to amber on hover */
+.af-section .af-btn-light {
   background: transparent;
-  color: var(--af-text) !important;
-  border-color: var(--af-border-strong);
-}
-
-.dark .af-btn-light {
-  color: var(--af-on-dark) !important;
-  border-color: var(--af-border-dark);
-}
-
-.af-btn-light:hover {
+  color: var(--af-text);
   border-color: var(--af-text);
-  color: var(--af-text) !important;
 }
 
-.dark .af-btn-light:hover {
-  border-color: var(--af-on-dark-2);
-  color: var(--af-on-dark) !important;
+.dark .af-section .af-btn-light {
+  color: var(--af-on-dark);
+  border-color: var(--af-on-dark);
+}
+
+.af-section .af-btn-light:hover {
+  border-color: var(--af-accent);
+  color: var(--af-accent);
+  background: rgba(194, 65, 12, 0.06);
+}
+
+.dark .af-section .af-btn-light:hover {
+  border-color: var(--af-accent);
+  color: var(--af-accent);
+  background: rgba(194, 65, 12, 0.1);
 }
 
 /* ============================================================== */
@@ -529,6 +557,7 @@ a.af-btn,
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3rem;
+  align-items: stretch;
 }
 
 @media (max-width: 880px) {
@@ -538,9 +567,23 @@ a.af-btn,
 .af-two-col-card {
   padding-top: 1.5rem;
   border-top: 1px solid var(--af-border-strong);
+  display: flex;
+  flex-direction: column;
 }
 
 .dark .af-two-col-card { border-color: var(--vp-c-divider); }
+
+/* Let the markdown code block grow to fill the card so both columns
+   reach the same height regardless of how many lines each snippet has. */
+.af-two-col-card div[class*="language-"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.af-two-col-card div[class*="language-"] pre {
+  flex: 1;
+}
 
 .af-two-col-card h3 {
   font-family: var(--af-font-mono);
@@ -634,42 +677,49 @@ a.af-btn,
 /* Markdown code blocks inside cards — dark aesthetic + readable  */
 /* ============================================================== */
 
-.af-two-col-card div[class*="language-"] {
+/* Code-block overrides are scoped under `.af-section` so the selector
+   beats VitePress's default `.vp-doc div[class*="language-"]` (specificity
+   0,2,1) by adding one more class. No !important needed for normal CSS
+   rules. The only !important left is on Shiki span colors, because Shiki
+   emits inline `style="color: ..."` and inline styles can only be beaten
+   with !important. */
+
+.af-section .af-two-col-card div[class*="language-"] {
   margin: 0 0 1.5rem;
-  background: #0d0a06 !important;
+  background: #0d0a06;
   border: 1px solid var(--af-border-dark);
   border-radius: 2px;
   position: relative;
 }
 
-.af-two-col-card div[class*="language-"] pre {
-  background: transparent !important;
-  padding: 1.5rem 1.75rem !important;
+.af-section .af-two-col-card div[class*="language-"] pre {
+  background: transparent;
+  padding: 1.5rem 1.75rem;
   font-size: 0.85rem;
   line-height: 1.85;
-  margin: 0 !important;
+  margin: 0;
 }
 
-.af-two-col-card div[class*="language-"] code,
-.af-two-col-card div[class*="language-"] pre code {
-  font-family: var(--af-font-mono) !important;
-  background: transparent !important;
+.af-section .af-two-col-card div[class*="language-"] code,
+.af-section .af-two-col-card div[class*="language-"] pre code {
+  font-family: var(--af-font-mono);
+  background: transparent;
   color: var(--af-on-dark);
 }
 
 /* Force Shiki to use its *dark* theme colors in these blocks regardless
    of the page's light/dark mode. Shiki emits per-token --shiki-light and
-   --shiki-dark inline style vars; the default rule paints with --shiki-light
-   in light mode. We override to always use --shiki-dark. */
-.af-two-col-card div[class*="language-"] .shiki span,
-.af-two-col-card div[class*="language-"] code span {
+   --shiki-dark inline style vars on each <span style="...">; inline styles
+   can only be overridden with !important. This is the legitimate use. */
+.af-section .af-two-col-card div[class*="language-"] .shiki span,
+.af-section .af-two-col-card div[class*="language-"] code span {
   color: var(--shiki-dark) !important;
   background-color: transparent !important;
 }
 
-/* Hide the language label that VitePress sticks in the corner — visual noise */
-.af-two-col-card div[class*="language-"]::before {
-  display: none !important;
+/* Hide the language label that VitePress sticks in the corner */
+.af-section .af-two-col-card div[class*="language-"]::before {
+  display: none;
 }
 .af-two-col-card div[class*="language-"] .lang {
   display: none !important;

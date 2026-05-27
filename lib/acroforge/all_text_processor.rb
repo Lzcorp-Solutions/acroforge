@@ -47,7 +47,19 @@ module AcroForge
     end
 
     def normalize_extracted_text(raw_text)
-      str = raw_text.to_s.tr(" ", " ")
+      str = raw_text.to_s
+      # Unicode NFKC normalization handles ligatures (ﬁ -> fi), fullwidth
+      # letters, superscripts, and the rest of the Unicode "compatibility"
+      # subset in one pass. We guard against invalid encoding because PDFs
+      # occasionally smuggle raw bytes through.
+      str = str.unicode_normalize(:nfkc) if str.valid_encoding?
+      # NBSP to regular space (NFKC leaves NBSP alone)
+      str = str.tr(" ", " ")
+      # Curly quotes, en/em dashes, ellipsis, zero-width chars: NFKC doesn't
+      # touch these since they're separate codepoints, not compatibility forms.
+      AcroForge::Constants::UNICODE_REPLACEMENTS.each do |from, to|
+        str = str.gsub(from, to)
+      end
       str = str.gsub(/\s+/, " ").strip
 
       # Fix split apostrophes like "Customer ' s".

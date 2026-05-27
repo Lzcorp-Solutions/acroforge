@@ -87,6 +87,27 @@ module AcroForge
       @field_proposals
     end
 
+    # Returns a hash mapping synthetic field names ("date", "date#1", "date#2")
+    # to the underlying AcroForm field objects, using the same naming scheme
+    # compile! emits. Callers (notably Relabeler.apply!) use this to resolve
+    # mapping keys back to the right field even when the PDF has multiple
+    # fields sharing the same :T name. The first occurrence keeps the bare
+    # base name; subsequent occurrences get a #N suffix.
+    def self.field_index(form)
+      return {} unless form
+      counts = Hash.new(0)
+      index = {}
+      form.each_field do |field|
+        next unless field.is_a?(HexaPDF::Type::AcroForm::Field)
+        name = field.full_field_name
+        next unless name
+        synth = (counts[name] == 0) ? name : "#{name}##{counts[name]}"
+        counts[name] += 1
+        index[synth] = field
+      end
+      index
+    end
+
     # ------------------------------------------
     # PHASE 1: THE HIERARCHICAL COMPILER
     # ------------------------------------------
@@ -109,6 +130,13 @@ module AcroForge
 
       section_map = build_section_map(page_text_map)
 
+      # Track occurrences of each field name so we can disambiguate
+      # duplicates (e.g., three separate fields all named "date") with a
+      # synthetic suffix: first -> "date", second -> "date#1", third ->
+      # "date#2". The bare base name is preserved when unique so existing
+      # mappings stay backwards compatible.
+      field_name_counts = Hash.new(0)
+
       form.each_field do |field|
         next unless field.is_a?(HexaPDF::Type::AcroForm::Field)
 
@@ -125,7 +153,10 @@ module AcroForge
 
         next unless page_index
 
-        original_field_name = field.full_field_name
+        base_field_name = field.full_field_name
+        occurrence = field_name_counts[base_field_name]
+        field_name_counts[base_field_name] += 1
+        original_field_name = (occurrence == 0) ? base_field_name : "#{base_field_name}##{occurrence}"
 
         is_btn = field.is_a?(HexaPDF::Type::AcroForm::ButtonField) || field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
         is_radio_group = is_btn && field.each_widget.count > 1

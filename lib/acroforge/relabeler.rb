@@ -31,6 +31,12 @@ module AcroForge
       skipped_null = 0
       stale = 0
 
+      # Build a synthetic-name -> field index using the same naming scheme
+      # the engine emits during compile!. This handles PDFs where multiple
+      # fields share the same :T name: the mapping refers to "date",
+      # "date#1", "date#2", and each one resolves to the right field.
+      field_index = AcroForge::Engine.field_index(form)
+
       claimed = {}
       entries.each do |pdf_name, entry|
         key = entry["key"]
@@ -39,7 +45,7 @@ module AcroForge
           next
         end
 
-        field = form.field_by_name(pdf_name)
+        field = field_index[pdf_name]
         unless field
           stale += 1
           warn "acroforge: stale entry #{pdf_name.inspect} not found in PDF (skipping)"

@@ -118,6 +118,37 @@ RSpec.describe AcroForge::Engine do
     end
   end
 
+  describe ".field_index" do
+    # Build a tiny PDF in-memory with three fields all named "date" to
+    # verify the synthetic naming scheme.
+    it "disambiguates duplicate field names with #N suffixes" do
+      doc = HexaPDF::Document.new
+      page = doc.pages.add
+      form = doc.acro_form(create: true)
+      3.times do |i|
+        field = form.create_text_field("date")
+        field.create_widget(page, Rect: [100, 700 - (i * 20), 200, 715 - (i * 20)])
+      end
+
+      index = described_class.field_index(form)
+
+      expect(index.keys).to contain_exactly("date", "date#1", "date#2")
+      # All three keys should resolve to distinct field objects
+      expect(index.values.uniq.length).to eq(3)
+    end
+
+    it "leaves uniquely-named fields with their bare name" do
+      doc = HexaPDF::Document.new
+      page = doc.pages.add
+      form = doc.acro_form(create: true)
+      form.create_text_field("full_name").create_widget(page, Rect: [0, 0, 100, 20])
+      form.create_text_field("email").create_widget(page, Rect: [0, 30, 100, 50])
+
+      index = described_class.field_index(form)
+      expect(index.keys).to contain_exactly("full_name", "email")
+    end
+  end
+
   describe "#normalize_button_base_key" do
     let(:engine) { described_class.new(semantic_fixture, normalized_dir: @tmp) }
 

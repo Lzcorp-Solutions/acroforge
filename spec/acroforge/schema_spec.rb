@@ -131,6 +131,63 @@ RSpec.describe AcroForge::Schema do
     end
   end
 
+  describe ".merge" do
+    it "adds new canonical keys for mapping entries the schema doesn't know" do
+      schema = {full_name: {type: :string, variations: ["Full Name"]}}
+      mapping = {
+        "page0_field6" => {"key" => "phone_number", "type" => "string", "meta" => {"raw_label" => "Phone Number"}}
+      }
+      result = described_class.merge(schema, mapping)
+      expect(result.keys).to contain_exactly(:full_name, :phone_number)
+      expect(result[:phone_number]).to eq(type: :string, variations: ["Phone Number"])
+    end
+
+    it "adds new variations to existing canonical keys without duplicating" do
+      schema = {full_name: {type: :string, variations: ["Full Name"]}}
+      mapping = {
+        "page0_field6" => {"key" => "full_name", "type" => "string", "meta" => {"raw_label" => "Customer Name"}},
+        "page0_field28" => {"key" => "full_name", "type" => "string", "meta" => {"raw_label" => "Full Name"}}
+      }
+      result = described_class.merge(schema, mapping)
+      expect(result[:full_name][:variations]).to eq(["Full Name", "Customer Name"])
+    end
+
+    it "strips the _N collision suffix when deriving the canonical key" do
+      schema = {}
+      mapping = {
+        "page0_field6" => {"key" => "full_name", "type" => "string", "meta" => {"raw_label" => "Name A"}},
+        "page0_field28" => {"key" => "full_name_1", "type" => "string", "meta" => {"raw_label" => "Name B"}}
+      }
+      result = described_class.merge(schema, mapping)
+      expect(result.keys).to eq([:full_name])
+      expect(result[:full_name][:variations]).to contain_exactly("Name A", "Name B")
+    end
+
+    it "skips entries with null or empty key, and _meta sentinels" do
+      schema = {existing: {type: :string, variations: ["E"]}}
+      mapping = {
+        "_meta" => {"source_pdf" => "f.pdf"},
+        "page0_field6" => {"key" => nil, "type" => "string", "meta" => {"raw_label" => "Skip Me"}},
+        "page0_field7" => {"key" => "", "type" => "string"},
+        "page0_field8" => {"key" => "kept", "type" => "string", "meta" => {"raw_label" => "Kept"}}
+      }
+      result = described_class.merge(schema, mapping)
+      expect(result.keys).to contain_exactly(:existing, :kept)
+    end
+
+    it "does not mutate the input schema" do
+      schema = {full_name: {type: :string, variations: ["Full Name"]}}
+      original = schema.dup
+      original_variations = schema[:full_name][:variations].dup
+      mapping = {
+        "page0_field6" => {"key" => "full_name", "type" => "string", "meta" => {"raw_label" => "New Variation"}}
+      }
+      described_class.merge(schema, mapping)
+      expect(schema).to eq(original)
+      expect(schema[:full_name][:variations]).to eq(original_variations)
+    end
+  end
+
   describe ".humanize_label" do
     it "fixes typos derived from TYPO_PHRASE_REPLACEMENTS" do
       expect(described_class.humanize_label("Tax Identi fi cation No.")).to eq("Tax Identification No.")

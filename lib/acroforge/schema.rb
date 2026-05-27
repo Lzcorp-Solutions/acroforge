@@ -152,6 +152,44 @@ module AcroForge
       end
     end
 
+    # Merge a mapping file's hand-reviewed decisions back into a schema.
+    # Each non-null mapping entry contributes a canonical key (stripped of
+    # any _N collision suffix), its type, and its raw_label as a variation.
+    # Existing schema entries keep their type but gain new variations;
+    # missing entries are created. Returns the merged schema hash.
+    def merge(schema, mapping_entries)
+      result = schema.each_with_object({}) do |(k, v), out|
+        out[k] = v.is_a?(Hash) ? v.dup.tap { |d| d[:variations] = (d[:variations] || []).dup } : v
+      end
+
+      mapping_entries.each do |pdf_field_name, entry|
+        next if pdf_field_name.to_s.start_with?("_")
+        next unless entry.is_a?(Hash)
+
+        key_str = entry["key"]
+        next if key_str.nil? || key_str.to_s.empty?
+
+        # Strip the _N collision suffix the engine appends when multiple
+        # fields map to the same canonical key (full_name_1, full_name_2).
+        canonical = key_str.to_s.sub(/_\d+\z/, "").to_sym
+
+        type_str = entry["type"]
+        type_sym = type_str.is_a?(String) ? type_str.to_sym : type_str
+
+        result[canonical] ||= {type: type_sym || :string, variations: []}
+        # Don't overwrite an existing type unless one is actually given
+        result[canonical][:type] = type_sym if type_sym
+
+        raw_label = entry.dig("meta", "raw_label")
+        if raw_label && !raw_label.to_s.empty?
+          variations = result[canonical][:variations] ||= []
+          variations << raw_label.to_s unless variations.include?(raw_label.to_s)
+        end
+      end
+
+      result
+    end
+
     def normalize(input)
       return {} if input.nil? || input.empty?
 

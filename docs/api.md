@@ -41,6 +41,8 @@ engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
 
 After `compile!`, call `engine.field_proposals` to inspect the raw per-field scoring data that the Relabeler consumes. The proposals include `pdf_field_name`, `pdf_field_type`, `canonical_key`, `raw_label` (cleaned), `confidence`, `section`, `page`, `y`, `x`, and `options`.
 
+When a PDF has multiple fields sharing the same `:T` name, `pdf_field_name` uses a `#N` synthetic suffix to keep them distinct (`date`, `date#1`, `date#2`). The matching `AcroForge::Engine.field_index(form)` class method returns a `{synthetic_name => field_object}` hash for callers that need to resolve those names back to fields (this is what `Relabeler.apply!` uses internally).
+
 ### `AcroForge::Schema`
 
 Loads, normalises, infers, and dumps schema files.
@@ -57,6 +59,19 @@ schema = AcroForge::Schema.infer("form.pdf", engine: engine)
 ```
 
 `Schema.load` accepts a file path (YAML or JSON) and returns a Hash in the rich form (`{key => {type:, variations:, options:}}`). It also normalises shorthand schemas (where values are arrays of variations) into the rich form on the way in.
+
+#### `Schema.merge(schema, mapping_entries)`
+
+Folds a mapping's reviewed decisions back into a schema, returning the merged schema hash. Used by the `acroforge schema merge` CLI to keep `schema.yml` and `mapping.yml` in sync after manual edits.
+
+```ruby
+schema = AcroForge::Schema.load("schema.yml")
+mapping = YAML.load_file("mapping.yml").reject { |k, _| k.to_s.start_with?("_") }
+updated = AcroForge::Schema.merge(schema, mapping)
+AcroForge::Schema.dump(updated, "schema.yml")
+```
+
+Each mapping entry with a non-null `key:` contributes the canonical key (stripped of `_N` collision suffixes), its `type:`, and its `meta.raw_label` as a variation. Existing schema keys gain new variations without duplication; missing keys are created. The input schema is not mutated.
 
 ### `AcroForge::Relabeler`
 
@@ -83,6 +98,44 @@ AcroForge::Relabeler.propose("form.pdf", out: "mapping.yml", schema: schema, eng
 ```
 
 `apply!` validates every `key` value before writing anything. If any key fails the `/\A[a-z][a-z0-9_]*\z/` check, it raises `RelabelError` and leaves the PDF untouched. Collisions (two entries with the same key) are auto-disambiguated with `_1`, `_2` suffixes; the result's `disambiguated` counter tells you how many fields ended up suffixed. Stale entries (mapping keys that don't match any field in the PDF) emit warnings to `$stderr` and are counted in `stale`.
+
+### `AcroForge::Preparer`
+
+Resolves PDF-internal naming conflicts (multiple AcroForm fields sharing the same `:T` name) by giving each duplicate a unique heuristic-proposed name before any mapping is generated. No-op for PDFs without duplicates.
+
+```ruby
+# Modify the PDF in place
+result = AcroForge::Preparer.prepare!("form.pdf")
+# => { duplicate_groups: 1, renamed: 3, skipped: 0, out_path: "form.pdf" }
+
+# Or write a prepared copy to a different file
+result = AcroForge::Preparer.prepare!("form.pdf", out: "form_prepared.pdf")
+
+# Use a schema for canonicalization while resolving duplicates
+schema = AcroForge::Schema.load("schema.yml")
+result = AcroForge::Preparer.prepare!("form.pdf", schema: schema)
+```
+
+The result hash reports how many duplicate groups were found, how many fields actually got renamed (i.e., the heuristic produced a proposal for them), and how many were skipped because the heuristic had no proposal. `out_path` reflects where the prepared PDF was written.
+
+### `AcroForge::Annotator`
+
+Renders a copy of the PDF with each AcroForm field labeled inline. The labels show either the field's current name (bare mode) or an `original_name -> proposed_key` arrow colour-coded against a mapping file. Used by the `acroforge annotate` CLI subcommand and available for direct library use.
+
+```ruby
+# Bare annotation: each field labeled with its current internal name
+result = AcroForge::Annotator.annotate("form.pdf", out: "form_annotated.pdf")
+# => { annotated: 98, mapped: 0, unmapped: 0, missing: 0, out_path: "form_annotated.pdf" }
+
+# With a mapping (Hash or path to mapping.yml): colour-coded review of proposals
+result = AcroForge::Annotator.annotate("form.pdf",
+  out: "review.pdf",
+  mapping: "mapping.yml"
+)
+# => { annotated: 98, mapped: 82, unmapped: 10, missing: 6, out_path: "review.pdf" }
+```
+
+The result hash counts fields by mapping state: `mapped` (key set in mapping), `unmapped` (`key: ~`), and `missing` (field not in the mapping file at all). Useful for programmatic checks of mapping coverage.
 
 ### `AcroForge::Validator`
 
