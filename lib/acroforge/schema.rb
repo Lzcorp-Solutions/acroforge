@@ -12,7 +12,7 @@ module AcroForge
     def load(path)
       raw = case File.extname(path).downcase
       when ".yml", ".yaml"
-        YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: true)
+        YAML.safe_load(File.read(path), permitted_classes: [Symbol], aliases: true)
       when ".json"
         JSON.parse(File.read(path), symbolize_names: false)
       else
