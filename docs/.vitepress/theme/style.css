@@ -247,7 +247,10 @@ body { font-family: var(--af-font-body); }
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-.af-section .af-btn:hover { transform: translateY(-1px); }
+.af-section .af-btn:hover {
+  transform: translateY(-1px);
+  opacity: 1;
+}
 .af-section .af-btn:active { transform: translateY(0); }
 
 /* Primary: solid amber on the dark hero */
@@ -260,6 +263,7 @@ body { font-family: var(--af-font-body); }
 .af-section .af-btn-primary:hover {
   background: #9a3412;
   border-color: #9a3412;
+  color: var(--af-on-dark);
   box-shadow: 0 4px 12px -3px rgba(194, 65, 12, 0.45);
 }
 
@@ -286,6 +290,7 @@ body { font-family: var(--af-font-body); }
 .af-section .af-btn-dark:hover {
   background: var(--af-dark-2);
   border-color: var(--af-dark-2);
+  color: var(--af-on-dark);
   box-shadow: 0 4px 12px -3px rgba(20, 17, 13, 0.35);
 }
 
@@ -298,6 +303,7 @@ body { font-family: var(--af-font-body); }
 .dark .af-section .af-btn-dark:hover {
   background: var(--af-bg);
   border-color: var(--af-bg);
+  color: var(--af-dark);
   box-shadow: 0 4px 12px -3px rgba(245, 243, 237, 0.25);
 }
 

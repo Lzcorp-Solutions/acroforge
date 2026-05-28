@@ -119,13 +119,16 @@ RSpec.describe AcroForge::Schema do
       expect(result).to be_a(Hash)
       expect(result).not_to be_empty
       first_entry = result.values.first
-      expect(first_entry).to include(:type, :variations)
-      expect(first_entry[:variations]).to be_an(Array)
+      expect(first_entry).to include(:type)
+      # :variations is optional — preserved fields and entries with no
+      # meaningful spatial label omit it. When present, it's an Array.
+      expect(first_entry[:variations]).to be_an(Array) if first_entry.key?(:variations)
     end
 
     it "aggregates duplicate raw labels into one entry per canonical key" do
       result = silence_stdout { described_class.infer(semantic_fixture) }
       result.each_value do |entry|
+        next unless entry.key?(:variations)
         expect(entry[:variations]).to eq(entry[:variations].uniq)
       end
     end
@@ -209,6 +212,63 @@ RSpec.describe AcroForge::Schema do
 
     it "collapses incidental whitespace" do
       expect(described_class.humanize_label("Full   Name   ")).to eq("Full Name")
+    end
+
+    it "strips parenthetical UI hints" do
+      expect(described_class.humanize_label("Date of Birth (YYYY-MM-DD)")).to eq("Date of Birth")
+      expect(described_class.humanize_label("Amount (GHS)")).to eq("Amount")
+    end
+
+    it "renders snake_case input as space-separated title case" do
+      expect(described_class.humanize_label("other_bank")).to eq("Other Bank")
+      expect(described_class.humanize_label("first_name")).to eq("First Name")
+      expect(described_class.humanize_label("application_no")).to eq("Application No")
+    end
+  end
+
+  describe "empty :variations cleanup" do
+    it ".aggregate_proposals omits :variations when no labels were captured" do
+      proposals = [
+        {canonical_key: :first_name, raw_label: "first_name", confidence: :preserved,
+         pdf_field_type: :text, options: nil},
+        {canonical_key: :email, raw_label: "email", confidence: :preserved,
+         pdf_field_type: :text, options: nil}
+      ]
+      result = described_class.aggregate_proposals(proposals)
+      expect(result[:first_name]).to eq(type: :string)
+      expect(result[:email]).to eq(type: :email)
+      result.each_value { |v| expect(v).not_to have_key(:variations) }
+    end
+
+    it ".merge drops empty variations on copied entries that had none" do
+      schema = {full_name: {type: :string}}
+      mapping = {"some_field" => {"key" => "phone", "type" => "string", "meta" => {}}}
+      result = described_class.merge(schema, mapping)
+      # The pre-existing full_name had no variations; it must NOT gain a hollow [].
+      expect(result[:full_name]).to eq(type: :string)
+      # phone got no raw_label either, so it's clean too.
+      expect(result[:phone]).to eq(type: :string)
+    end
+  end
+
+  describe ".infer_type snake_case handling" do
+    let(:p) { ->(label) { {pdf_field_type: :text, raw_label: label, options: nil} } }
+
+    it "infers :date for snake_case names containing date/dob/expiry/employed/birth" do
+      expect(described_class.send(:infer_type, p["date_signed"])).to eq(:date)
+      expect(described_class.send(:infer_type, p["dob"])).to eq(:date)
+      expect(described_class.send(:infer_type, p["id_expiry"])).to eq(:date)
+      expect(described_class.send(:infer_type, p["date_employed"])).to eq(:date)
+    end
+
+    it "infers :number when snake_case names end in _no" do
+      expect(described_class.send(:infer_type, p["account_no"])).to eq(:number)
+      expect(described_class.send(:infer_type, p["loan_tenor"])).to eq(:number)
+    end
+
+    it "still classifies plain strings as :string" do
+      expect(described_class.send(:infer_type, p["customer_signature"])).to eq(:string)
+      expect(described_class.send(:infer_type, p["postal_address"])).to eq(:string)
     end
   end
 end

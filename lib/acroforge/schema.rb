@@ -100,24 +100,26 @@ module AcroForge
     # we use its proposals directly. This lets callers (notably the CLI's
     # `bootstrap` subcommand) avoid a redundant second compile when they
     # also want to call Relabeler.propose on the same PDF.
-    def infer(pdf_path, sections: [], engine: nil)
+    def infer(pdf_path, sections: [], preserve: [], engine: nil)
       return aggregate_proposals(engine.field_proposals) if engine
 
       require "tmpdir"
       Dir.mktmpdir do |tmp|
-        e = AcroForge::Engine.new(pdf_path, sections: sections, normalized_dir: tmp)
+        e = AcroForge::Engine.new(pdf_path, sections: sections, preserve: preserve, normalized_dir: tmp)
         e.compile!
         aggregate_proposals(e.field_proposals)
       end
     end
 
     def aggregate_proposals(proposals)
-      proposals.each_with_object({}) do |p, schema|
+      result = proposals.each_with_object({}) do |p, schema|
         next if p[:canonical_key].nil?
 
         key = p[:canonical_key].to_sym
         schema[key] ||= {type: infer_type(p), variations: []}
-        if p[:raw_label]
+
+        # Preserved fields' raw_label echoes the key — adding it as a variation is noise.
+        if p[:raw_label] && p[:confidence] != :preserved
           cleaned = humanize_label(p[:raw_label])
           schema[key][:variations] << cleaned unless schema[key][:variations].include?(cleaned)
         end
@@ -126,6 +128,9 @@ module AcroForge
           schema[key][:options] = p[:options].keys.map(&:to_sym).uniq
         end
       end
+
+      result.each_value { |entry| entry.delete(:variations) if entry[:variations].empty? }
+      result
     end
 
     # Thin delegator. The real implementation lives in AcroForge::Labels so
@@ -143,10 +148,11 @@ module AcroForge
       when :choice
         :select
       else
-        label = proposal[:raw_label].to_s.downcase
+        # `_` is a word char, so `\b` regexes need underscores converted to spaces.
+        label = proposal[:raw_label].to_s.downcase.tr("_", " ")
         case label
         when /amount|salary|income|balance|fee|tier3/ then :money
-        when /\bdate\b|birth|expiry|employed/ then :date
+        when /\bdate\b|\bdob\b|birth|expiry|employed/ then :date
         when /email/ then :email
         when /years|tenor|number of|\bno\.?\b/ then :number
         else :string
@@ -187,6 +193,12 @@ module AcroForge
           variations = result[canonical][:variations] ||= []
           variations << raw_label.to_s unless variations.include?(raw_label.to_s)
         end
+      end
+
+      # Mirrors aggregate_proposals — keeps merged schemas free of hollow `variations: []`.
+      result.each_value do |entry|
+        next unless entry.is_a?(Hash) && entry[:variations].is_a?(Array) && entry[:variations].empty?
+        entry.delete(:variations)
       end
 
       result

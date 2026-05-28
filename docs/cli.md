@@ -6,7 +6,7 @@
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
 acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
-acroforge relabel apply <pdf> <mapping.yml> [-v]
+acroforge relabel apply <pdf> <mapping.yml> [--annotate[=PATH]] [-v]
 acroforge compile <pdf>          [--schema schema.yml]
 acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml] [-v]
 acroforge annotate <pdf>         [--mapping mapping.yml] [--out annotated.pdf]
@@ -270,9 +270,9 @@ Wrote mapping.yml: 82 of 92 fields proposed; 10 need manual review.
 
 Prints the installed AcroForge version and exits.
 
-```bash
+```bash-vue
 acroforge version
-# 0.1.0
+# {{ $version }}
 ```
 
 ---

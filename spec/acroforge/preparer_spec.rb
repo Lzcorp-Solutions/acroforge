@@ -41,18 +41,18 @@ RSpec.describe AcroForge::Preparer do
     expect(result[:renamed]).to eq(0)
   end
 
-  it "renames each duplicate field to its heuristic-proposed unique key" do
+  it "disambiguates duplicate field names while preserving the first occurrence" do
     pdf = fixture_with_duplicate_dates
     result = silence_stdout { described_class.prepare!(pdf) }
 
     expect(result[:duplicate_groups]).to eq(1)
-    expect(result[:renamed]).to eq(3)
 
-    # After prepare, no two fields share a name
+    # The first "date" passes the clean-identifier preserve heuristic and is kept;
+    # the two duplicates get _1 / _2 collision suffixes so no two fields share a name.
     doc = HexaPDF::Document.open(pdf)
     names = doc.acro_form.each_field.map(&:full_field_name)
     expect(names.uniq.length).to eq(names.length)
-    expect(names).not_to include("date")  # all three should have been renamed
+    expect(names).to include("date")
   end
 
   it "writes to an explicit --out path when given, leaving the source untouched" do

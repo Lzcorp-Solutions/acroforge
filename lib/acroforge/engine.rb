@@ -11,16 +11,27 @@ require_relative "constants"
 require_relative "labels"
 
 module AcroForge
+  ImageTooLargeError = Class.new(Error)
+  UnsupportedImageFormatError = Class.new(Error)
+
   class Engine
+    # Caps a phone-camera passport photo from bloating the output PDF.
+    MAX_IMAGE_BYTES = 5 * 1024 * 1024
+    MAX_IMAGE_DIMENSION = 4000
+    # Auto-downsample images whose pixel resolution far exceeds this PPI
+    # at the widget's rendered size. Requires ImageMagick on PATH.
+    TARGET_PPI = 200
+
     attr_reader :template_path, :schema, :overrides, :sections, :normalized_path,
       :mapped_fields, :unmapped_fields, :filled_fields, :missing_fields,
       :select_field_options, :new_fields_detected
 
-    def initialize(template_path, schema: {}, overrides: {}, sections: [], normalized_dir: nil)
+    def initialize(template_path, schema: {}, overrides: {}, sections: [], preserve: [], normalized_dir: nil)
       @template_path = template_path
       @schema = schema
       @overrides = overrides
       @sections = sections
+      @preserve = Array(preserve).map(&:to_s)
 
       dir = normalized_dir || File.dirname(template_path)
       base = File.basename(template_path, ".*")
@@ -47,7 +58,7 @@ module AcroForge
       @source_form ||= source_doc.acro_form(create: false)
     end
 
-    def raw_fields
+    def fields
       return [] unless source_form
       extracted = []
       source_form.each_field do |field|
@@ -62,12 +73,12 @@ module AcroForge
       extracted
     end
 
-    def raw_field_names
-      raw_fields.map { |f| f[:name] }
+    def field_names
+      fields.map { |f| f[:name] }
     end
 
-    def any_raw_fields?
-      raw_fields.any?
+    def any_fields?
+      fields.any?
     end
 
     def fully_mapped?
@@ -108,9 +119,10 @@ module AcroForge
       index
     end
 
-    # ------------------------------------------
-    # PHASE 1: THE HIERARCHICAL COMPILER
-    # ------------------------------------------
+    # Phase one of the discover→fill pipeline: run the spatial heuristic over
+    # every field, rename each to its proposed semantic key in place, and
+    # persist the result to @normalized_path. The returned hash is what the
+    # Relabeler and Schema.infer consume.
     def compile!
       puts ">> Compiling template: #{@template_path}"
       form = source_doc.acro_form(create: true)
@@ -161,10 +173,70 @@ module AcroForge
         is_btn = field.is_a?(HexaPDF::Type::AcroForm::ButtonField) || field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
         is_radio_group = is_btn && field.each_widget.count > 1
 
+        preserved_key = nil
+        preserved_source = nil
+        if @preserve.include?(original_field_name) || @preserve.include?(base_field_name)
+          preserved_key = base_field_name
+          preserved_source = :explicit
+        elsif @schema && !@schema.empty?
+          # Raw name first — sanitize_key over-corrects "social" → "sofficial".
+          if @schema.key?(base_field_name.to_sym)
+            preserved_key = base_field_name
+            preserved_source = :schema
+          elsif (canonical = sanitize_key(base_field_name)) && @schema.key?(canonical.to_sym)
+            preserved_key = canonical.to_s
+            preserved_source = :schema
+          end
+        end
+
+        # Heuristic fallback for Schema.infer, which compiles with no schema yet.
+        if preserved_key.nil? && looks_like_clean_identifier?(base_field_name)
+          preserved_key = base_field_name
+          preserved_source = :heuristic
+        end
+
+        if preserved_key
+          target_key = preserved_key.to_sym
+          @mapped_fields[original_field_name] = target_key
+
+          y_center = (widget[:Rect][1] + widget[:Rect][3]) / 2.0
+          active_section = get_active_section(section_map, page_index, y_center)
+
+          preserved_opts = preserved_options_map(field)
+          # Mirror what the renamed-field path does so validate_payload! and fill!'s :TU
+          # branch see the same option map for preserved buttons/choices.
+          if preserved_opts && !preserved_opts.empty?
+            @select_field_options[target_key.to_s] = preserved_opts
+            field[:TU] = preserved_opts.to_json
+          end
+
+          @field_proposals << {
+            pdf_field_name: original_field_name,
+            pdf_field_type: case field
+                            when HexaPDF::Type::AcroForm::TextField then :text
+                            when HexaPDF::Type::AcroForm::ButtonField then :button
+                            when HexaPDF::Type::AcroForm::ChoiceField then :choice
+                            else :other
+                            end,
+            canonical_key: target_key,
+            raw_label: preserved_key,
+            confidence: :preserved,
+            section: active_section,
+            page: page_index,
+            y: y_center,
+            x: (widget[:Rect][0] + widget[:Rect][2]) / 2.0,
+            options: preserved_opts
+          }
+
+          puts "   [Preserved] '#{original_field_name}' (#{preserved_source}) -> :#{target_key}"
+          next
+        end
+
         options_map = nil
 
         if is_radio_group
-          # THE FIX: Sort by Highest Y, then Leftmost X to guarantee finding the top-left box of multi-line groups
+          # A group's label sits by its top-left widget, so order by highest Y
+          # then leftmost X to find it — widget enumeration order is arbitrary.
           first_widget = field.each_widget.min_by { |w| [-w[:Rect][1], w[:Rect][0]] }
 
           raw_label = find_nearest_text(page_text_map[page_index], first_widget[:Rect], mode: :group_label)
@@ -220,10 +292,19 @@ module AcroForge
 
           ["no", "false", "off", "0", "unchecked"].each { |k| options_map[k] = "Off" }
 
+          # Image-upload (push-button) fields don't sit beside an inline
+          # label — their slot IS the label. Infer the canonical key from
+          # the widget geometry: square → passport_photo, wide-thin → signature.
+          if field.respond_to?(:push_button?) && field.push_button?
+            inferred = infer_image_field_key(widget[:Rect])
+            raw_label = inferred.to_s.tr("_", " ") if inferred
+          end
+
         elsif field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
           # Choice fields can expose values via /Opt entries.
           options_map = {}
-          if field[:Opt].is_a?(Array)
+          # `field[:Opt]` is a HexaPDF::PDFArray on hexapdf 1.x — not a plain Array.
+          if field[:Opt].respond_to?(:each)
             field[:Opt].each do |opt|
               if opt.is_a?(Array)
                 export_val = opt[0].to_s
@@ -264,8 +345,7 @@ module AcroForge
         override_entry = @overrides[original_field_name.to_s] || @overrides[original_field_name.to_sym]
         if override_entry
           semantic_name = override_entry[:key] || override_key_used
-          mapped_semantic = semantic_name.to_sym
-          target_key = (is_btn && !mapped_semantic.to_s.end_with?("_btn")) ? :"#{mapped_semantic}_btn" : mapped_semantic
+          target_key = semantic_name.to_sym
 
           # Ensure uniqueness when multiple fields map to the same semantic key
           original_target = target_key
@@ -319,7 +399,6 @@ module AcroForge
 
           target_key = active_section ? :"#{active_section}_#{base_key}" : base_key
           target_key = @overrides[raw_label].to_sym if @overrides[raw_label]
-          target_key = :"#{target_key}_btn" if is_btn && !target_key.to_s.end_with?("_btn")
 
           original_target = target_key
           counter = 1
@@ -397,19 +476,16 @@ module AcroForge
       }
     end
 
-    # ------------------------------------------
-    # PHASE 2: THE CRASH-PROOF INJECTOR
-    # ------------------------------------------
+    # Phase two: inject a payload into a name-addressable form and write
+    # output_path. Standalone — it does not depend on compile! having run.
     def fill!(payload, output_path, image_overlays = {})
-      puts ">> Injecting data into: #{@normalized_path}"
-
-      unless File.exist?(@normalized_path)
-        raise "Normalized template missing. Please run compile! first."
-      end
+      # Always the original template — a stale normalized PDF would silently fill the wrong document.
+      # To fill a normalized PDF, instantiate a new Engine pointing at it.
+      puts ">> Injecting data into: #{@template_path}"
 
       validate_payload!(payload)
 
-      normalized_doc = HexaPDF::Document.open(@normalized_path)
+      normalized_doc = HexaPDF::Document.open(@template_path)
       form = normalized_doc.acro_form
 
       @filled_fields = {}
@@ -429,6 +505,13 @@ module AcroForge
 
         if doc_field
           begin
+            if image_upload?(doc_field) && image_path?(value)
+              stamp_image_on_widget(normalized_doc, doc_field, value)
+              @filled_fields[key] = value
+              puts "   [Stamped] :#{key} <- #{value}"
+              next
+            end
+
             if doc_field.is_a?(HexaPDF::Type::AcroForm::ButtonField) ||
                 doc_field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
               resolved_from_map = false
@@ -464,7 +547,15 @@ module AcroForge
                 normalized_val = value.to_s.downcase.strip
                 on_state_sym = button_on_states(doc_field).first || :Yes
 
-                if ["true", "yes", "on", "1"].include?(normalized_val)
+                # Radios first — their "0"/"1" export values would otherwise
+                # be swallowed by the checkbox truthy/falsy branches below.
+                if doc_field.respond_to?(:radio_button?) && doc_field.radio_button?
+                  # Case-insensitive match against allowed_values so "Mr" finds :mr.
+                  # Symbol assignment triggers hexapdf to sync each widget's :AS.
+                  allowed = doc_field.allowed_values || []
+                  target = allowed.find { |v| v.to_s.casecmp(value.to_s).zero? } || value.to_sym
+                  doc_field.field_value = target
+                elsif ["true", "yes", "on", "1"].include?(normalized_val)
                   doc_field.field_value = on_state_sym.to_s
                   doc_field.each_widget { |w| w[:AS] = on_state_sym }
                 elsif ["false", "no", "off", "0"].include?(normalized_val)
@@ -487,7 +578,7 @@ module AcroForge
             @filled_fields[key] = value
             puts "   [Filled] :#{key} = #{value}"
           rescue HexaPDF::Error => e
-            puts "   [Warning] Rejected :#{key} - PDF formatting conflict (#{e.message.split(" (HexaPDF").first})"
+            raise AcroForge::Error, "Field :#{key} rejected by PDF: #{e.message.split(" (HexaPDF").first}"
           end
         else
           @missing_fields << key
@@ -526,8 +617,218 @@ module AcroForge
       :low
     end
 
+    # Lets Schema.infer classify radios/choices as :select instead of :boolean.
+    # Returns an empty hash (never nil) so callers can `.any?` / `.empty?` uniformly.
+    def preserved_options_map(field)
+      if field.is_a?(HexaPDF::Type::AcroForm::ButtonField) && field.radio_button?
+        vals = field.allowed_values
+        return {} unless vals && !vals.empty?
+        vals.each_with_object({}) { |v, h| h[v.to_s] = v.to_s }
+      elsif field.is_a?(HexaPDF::Type::AcroForm::ChoiceField)
+        items = field.option_items
+        return {} unless items && !items.empty?
+        items.each_with_object({}) { |v, h| h[v.to_s] = v.to_s }
+      else
+        {}
+      end
+    end
+
+    def image_upload?(field)
+      field.is_a?(HexaPDF::Type::AcroForm::ButtonField) &&
+        field.respond_to?(:push_button?) && field.push_button?
+    end
+
+    def image_path?(value)
+      value.is_a?(String) && File.file?(value)
+    end
+
+    def stamp_image_on_widget(doc, field, path)
+      format, image_width, image_height = validate_image!(path)
+      widget = field.each_widget.first
+      return unless widget && widget[:Rect]
+
+      page = doc.pages.find { |candidate_page| candidate_page[:Annots]&.include?(widget) }
+      return unless page
+
+      # Widget Rect is absolute page coords; canvas API is MediaBox-relative.
+      media_box_x, media_box_y = page.box.value[0], page.box.value[1]
+      rect_x_min, rect_y_min, rect_x_max, rect_y_max = widget[:Rect]
+      slot_width = rect_x_max - rect_x_min
+      slot_height = rect_y_max - rect_y_min
+      slot_canvas_x = rect_x_min - media_box_x
+      slot_canvas_y = rect_y_min - media_box_y
+
+      stamp_path = prepare_image_for_slot(path, format, image_width, image_height,
+        slot_width, slot_height) || path
+      if stamp_path != path
+        _, image_width, image_height = image_dimensions(stamp_path)
+      end
+
+      draw_width, draw_height = fit_inside(image_width, image_height, slot_width, slot_height)
+      draw_x = slot_canvas_x + (slot_width - draw_width) / 2.0
+      draw_y = slot_canvas_y + (slot_height - draw_height) / 2.0
+
+      canvas = page.canvas(type: :overlay)
+      canvas.fill_color(255, 255, 255)
+      canvas.rectangle(slot_canvas_x, slot_canvas_y, slot_width, slot_height).fill
+      canvas.image(stamp_path, at: [draw_x, draw_y], width: draw_width, height: draw_height)
+
+      # Bake into the page so the widget's empty appearance doesn't repaint over the image.
+      page[:Annots].delete(widget)
+    end
+
+    def fit_inside(image_width, image_height, slot_width, slot_height)
+      scale = [slot_width.to_f / image_width, slot_height.to_f / image_height].min
+      [image_width * scale, image_height * scale]
+    end
+
+    # Trim removes the transparent border around a signature; downsample
+    # caps source resolution at TARGET_PPI for the widget's longer side.
+    def prepare_image_for_slot(path, format, image_width, image_height,
+      slot_width_pt, slot_height_pt)
+      return nil unless imagemagick_available?
+      slot_max_pt = [slot_width_pt, slot_height_pt].max
+      target_max_px = (slot_max_pt * TARGET_PPI / 72.0).ceil
+      needs_resize = image_width > target_max_px * 2 || image_height > target_max_px * 2
+      needs_trim = format == :png && png_with_alpha?(path)
+      return nil unless needs_resize || needs_trim
+
+      ext = (format == :png) ? ".png" : ".jpg"
+      require "securerandom"
+      require "tmpdir"
+      output_path = File.join(Dir.tmpdir,
+        "acroforge_stamp_#{Process.pid}_#{SecureRandom.hex(4)}#{ext}")
+      # `format:path` locks the coder, closing the CVE-2016-3714 (ImageTragick) class of attack.
+      args = ["convert", "#{format}:#{path}"]
+      args.push("-trim", "+repage") if needs_trim
+      args.push("-resize", "#{target_max_px}x#{target_max_px}>") if needs_resize
+      args.push(output_path)
+      success = system(*args, out: File::NULL, err: File::NULL)
+      (success && File.exist?(output_path)) ? output_path : nil
+    end
+
+    # PNG color type 4 = greyscale+alpha, 6 = RGBA — only these are trim-worthy.
+    def png_with_alpha?(path)
+      File.open(path, "rb") do |io|
+        return false unless io.read(8) == "\x89PNG\r\n\x1A\n".b
+        return false if io.read(8).nil?
+        return false if io.read(8).nil?
+        return false if io.read(1).nil?
+        color_type_byte = io.read(1)
+        return false if color_type_byte.nil?
+        color_type = color_type_byte.unpack1("C")
+        color_type == 4 || color_type == 6
+      end
+    end
+
+    def imagemagick_available?
+      return @imagemagick_available if defined?(@imagemagick_available)
+      @imagemagick_available = system("which", "convert", out: File::NULL, err: File::NULL)
+    end
+
+    # Trust boundary in front of ImageMagick: any malformed-input path
+    # raises a single error class so worker retry policies can key on it.
+    def validate_image!(path)
+      size = File.size(path)
+      if size > MAX_IMAGE_BYTES
+        raise ImageTooLargeError, "#{path}: #{size} bytes exceeds #{MAX_IMAGE_BYTES} byte cap"
+      end
+      format, width, height = image_dimensions(path)
+      if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION
+        raise ImageTooLargeError,
+          "#{path}: #{width}x#{height}px exceeds #{MAX_IMAGE_DIMENSION}px per side"
+      end
+      [format, width, height]
+    end
+
+    def image_dimensions(path)
+      File.open(path, "rb") do |io|
+        head = read_exact(io, 8, path)
+        io.rewind
+        if head.start_with?("\x89PNG\r\n\x1A\n".b)
+          width, height = read_png_dimensions(io, path)
+          [:png, width, height]
+        elsif head[0, 2] == "\xFF\xD8".b
+          width, height = read_jpeg_dimensions(io, path)
+          [:jpg, width, height]
+        else
+          raise_unsupported(path)
+        end
+      end
+    end
+
+    def read_png_dimensions(io, path)
+      read_exact(io, 16, path) # 8-byte signature + 4 length + "IHDR"
+      width = read_exact(io, 4, path).unpack1("N")
+      height = read_exact(io, 4, path).unpack1("N")
+      [width, height]
+    end
+
+    def read_jpeg_dimensions(io, path)
+      read_exact(io, 2, path) # SOI
+      loop do
+        marker_byte = read_exact(io, 1, path).getbyte(0)
+        raise_unsupported(path) unless marker_byte == 0xFF
+        # Runs of 0xFF are valid JPEG fill bytes between markers.
+        marker_code = read_exact(io, 1, path).getbyte(0)
+        marker_code = read_exact(io, 1, path).getbyte(0) while marker_code == 0xFF
+        raise_unsupported(path, "no SOF marker found") if marker_code == 0xD9 || marker_code == 0x00
+        # 0xD0..0xD7 and 0x01 are standalone markers — no length follows.
+        next if (0xD0..0xD7).cover?(marker_code) || marker_code == 0x01
+        segment_length = read_exact(io, 2, path).unpack1("n")
+        raise_unsupported(path, "negative segment length") if segment_length < 2
+        is_sof_marker = (0xC0..0xCF).cover?(marker_code) && ![0xC4, 0xC8, 0xCC].include?(marker_code)
+        if is_sof_marker
+          read_exact(io, 1, path) # precision
+          height = read_exact(io, 2, path).unpack1("n")
+          width = read_exact(io, 2, path).unpack1("n")
+          return [width, height]
+        else
+          read_exact(io, segment_length - 2, path)
+        end
+      end
+    end
+
+    def read_exact(io, byte_count, path)
+      buf = io.read(byte_count)
+      raise_unsupported(path, "truncated header") if buf.nil? || buf.bytesize < byte_count
+      buf
+    end
+
+    def raise_unsupported(path, reason = "only JPG and PNG are supported")
+      raise UnsupportedImageFormatError, "#{path}: #{reason}"
+    end
+
+    # Heuristic key for push-button image fields based on widget aspect ratio.
+    # Vendor forms reserve square-ish boxes for headshots and wide-thin strips
+    # for signatures; the slot's geometry is a more reliable signal than any
+    # nearby text because the labels are usually far from the box.
+    def infer_image_field_key(rect)
+      width = rect[2] - rect[0]
+      height = rect[3] - rect[1]
+      return nil if width <= 0 || height <= 0
+      aspect_ratio = width.to_f / height
+      if aspect_ratio > 3.0
+        :signature
+      elsif aspect_ratio.between?(0.5, 2.0) && [width, height].min >= 30
+        :passport_photo
+      else
+        :photo
+      end
+    end
+
+    def looks_like_clean_identifier?(name)
+      return false unless name.is_a?(String) && !name.empty?
+      return false unless name.match?(/\A[a-z][a-z0-9_]*\z/)
+      return false if name.match?(/\A(?:page|text|field|image)\d/)
+      return false if name.match?(/_(?:field|text|image)\d/)
+      true
+    end
+
     def sanitize_key(string)
-      key = string.to_s.downcase
+      cleaned = AcroForge::Labels.strip_parenthetical(string)
+
+      key = cleaned.downcase
         .gsub(/['’*]/, "")
         .gsub(/[^a-z0-9]+/, "_").squeeze("_")
         .sub(/_$/, "")
@@ -735,24 +1036,25 @@ module AcroForge
       payload.each do |key, value|
         next if value.nil? || value.to_s.empty?
 
-        # Strip suffixes like _1 or _btn to find the base canonical key for schema lookup
+        # Strip the _N collision suffix that compile! appends when multiple
+        # fields share a name. The bare key drives schema and override lookup.
         key_str = key.to_s
-        base_key = key_str.sub(/_btn(?:_\d+)?\z/, "").sub(/_\d+\z/, "").to_sym
+        base_key = key_str.sub(/_\d+\z/, "").to_sym
 
-        # Try to resolve override info. @overrides may be keyed by
-        # original PDF field names (strings like "page0_field6") so allow lookup
-        # by semantic base_key (matching value[:key]) or by string key.
         override_info = @overrides[base_key] || @overrides[base_key.to_s] || @overrides.values.find { |v| v.is_a?(Hash) && v[:key].to_sym == base_key }
 
         type_info = @schema[base_key]
 
-        # If it's a button field, it's a select type by nature
-        type = if key_str.include?("_btn")
-          :select
-        elsif override_info
+        # Treat fields with a known options set as :select regardless of how
+        # the schema labels them — that's how button/choice fields are
+        # validated against their allowed values.
+        pdf_options_for_type = @select_field_options[key.to_s]&.keys || []
+        type = if override_info
           override_info[:type]
         elsif type_info
           type_info.is_a?(Hash) ? type_info[:type] : :string
+        elsif !pdf_options_for_type.empty?
+          :select
         else
           infer_type(key)
         end
@@ -789,9 +1091,11 @@ module AcroForge
       end
     end
 
-    # ------------------------------------------
-    # THE UNIVERSAL DYNAMIC HEURISTIC (WEIGHTS FIXED)
-    # ------------------------------------------
+    # Scores every text chunk against the field's rectangle and returns the
+    # best-matching label. `mode` selects which spatial relationship to reward
+    # (inline label, grid header, radio option). The magic offsets below are
+    # hand-tuned weights, not physical distances — they bias one relationship
+    # over another when several candidates sit close to the field.
     def find_nearest_text(text_chunks, field_rect, mode: :standard)
       f_x_min, f_y_min, f_x_max, f_y_max = field_rect
       f_y_center = (f_y_min + f_y_max) / 2.0
@@ -836,14 +1140,17 @@ module AcroForge
           end
 
         when :standard
-          is_grid_locked = dy_top > -5 && dy_top < 30 && t_x_center >= (f_x_min - 20) && t_x_center <= (f_x_max + 20)
+          # Tighter dy_top so labels two rows up don't claim an unrelated field.
+          is_grid_locked = dy_top > -5 && dy_top < 12 && t_x_center >= (f_x_min - 20) && t_x_center <= (f_x_max + 20)
           is_inline = dy_center < 10 && dx_left > -10 && dx_left < 200
 
-          if is_grid_locked
-            score = dy_top.abs - 2000
+          # Inline beats grid-locked when both apply: a label sitting on the same
+          # row as its field is a stronger signal than one sitting above it.
+          if is_inline
+            score = dx_left.abs - 3000
             score -= 200 if has_colon_or_q
-          elsif is_inline
-            score = dx_left.abs - 1000
+          elsif is_grid_locked
+            score = dy_top.abs - 2000
             score -= 200 if has_colon_or_q
           elsif dy_center < 15 && dx_left > -10 && dx_left < 150
             score = dx_left.abs

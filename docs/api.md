@@ -12,25 +12,49 @@ All CLI subcommands are thin wrappers around the library API.
 
 ### `AcroForge::Engine`
 
-The main entry point. Accepts a PDF path, an optional schema, optional per-PDF overrides, and optional section headers for scoping the heuristic.
+The main entry point. Accepts a PDF path and several optional kwargs.
 
 ```ruby
 require "acroforge"
 
-# Compile a PDF and inspect what the heuristic found.
+# Inspect a PDF without doing any work first.
+engine = AcroForge::Engine.new("form.pdf")
+engine.fields        # => [{ name: "full_name", type: :text, alternate_name: nil }, ...]
+engine.field_names   # => ["full_name", "email", "gender", ...]
+engine.any_fields?   # => true
+
+# Fill a PDF whose AcroForm names are already semantic. fill! is standalone —
+# it does NOT require compile! to have run.
+engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
+
+# Compile a PDF with garbage names to clean them via the spatial heuristic.
 engine = AcroForge::Engine.new(
   "form.pdf",
-  schema: AcroForge::Schema.load("schema.yml"),   # or pass a Hash directly
-  overrides: {},                                  # optional per-PDF overrides
-  sections: ["Personal Details", "Loan Details"]  # optional section headers for scoping
+  schema:    AcroForge::Schema.load("schema.yml"),   # or pass a Hash directly
+  overrides: {},                                     # per-PDF target-key overrides
+  preserve:  %w[some_field_kept_verbatim],           # allowlist of names compile! must not rename
+  sections:  ["Personal Details", "Loan Details"]    # optional section headers for scoping
 )
 result = engine.compile!
 # => { mapped: {...}, unmapped: [...], select_options: {...}, new_fields_detected: [...] }
 
-# Fill a form with a payload.
-engine.validate_payload!(full_name: "Alice", email: "alice@example.com")
-engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
+# To fill the compiled (normalized) template, point a new Engine at it.
+AcroForge::Engine.new("form_normalized.pdf").fill!(payload, "filled.pdf")
 ```
+
+#### Preserve cascade
+
+`compile!` keeps an existing field name verbatim — skipping the spatial heuristic for that field — when any of these match (highest priority first):
+
+1. **Explicit:** the name appears in the `preserve:` kwarg.
+2. **Schema:** the name is already a canonical key in the supplied `schema:`.
+3. **Heuristic:** the name looks like a clean snake_case identifier (no `pageN_fieldM` / `TextN` / `ImageN` markers).
+
+The cascade is what stops `Schema.infer` on a clean PDF from synthesising garbage keys derived from adjacent radio-option labels or section headers.
+
+#### Field introspection
+
+`engine.fields` returns one hash per AcroForm field with `:name`, `:type` (`:text | :button | :choice | :other`), and `:alternate_name`. `engine.field_names` and `engine.any_fields?` are convenience shortcuts. None of these require `compile!`.
 
 `compile!` returns a hash with four keys:
 
@@ -42,6 +66,30 @@ engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
 After `compile!`, call `engine.field_proposals` to inspect the raw per-field scoring data that the Relabeler consumes. The proposals include `pdf_field_name`, `pdf_field_type`, `canonical_key`, `raw_label` (cleaned), `confidence`, `section`, `page`, `y`, `x`, and `options`.
 
 When a PDF has multiple fields sharing the same `:T` name, `pdf_field_name` uses a `#N` synthetic suffix to keep them distinct (`date`, `date#1`, `date#2`). The matching `AcroForge::Engine.field_index(form)` class method returns a `{synthetic_name => field_object}` hash for callers that need to resolve those names back to fields (this is what `Relabeler.apply!` uses internally).
+
+#### Image fields (signatures, photos)
+
+`fill!`'s full signature is `fill!(payload, output_path, image_overlays = {})`. Beyond plain text and select values, it can stamp images two ways:
+
+```ruby
+# 1. Auto-stamp into an image-upload widget. When a payload value targets a
+#    push-button image field and is a path to an existing JPG/PNG, fill! draws
+#    it into the widget rectangle, scaled to fit.
+engine.fill!({ passport_photo: "alice.png", signature: "sig.png" }, "filled.pdf")
+
+# 2. Explicit overlay at fixed page coordinates, for PDFs with no real image
+#    widget. The third arg maps a payload key to a page + [x, y, w, h] box;
+#    the image path is taken from payload[key].
+engine.fill!(
+  { signature: "sig.png" },
+  "filled.pdf",
+  signature: { page: 0, coords: [400, 90, 140, 40] }
+)
+```
+
+`compile!` assigns canonical keys to image-upload slots from widget geometry, since their labels usually sit far from the box: square-ish → `:passport_photo`, wide-and-thin → `:signature`, otherwise `:photo`.
+
+Images are validated before stamping: JPG and PNG only, at most `MAX_IMAGE_BYTES` (5 MB) and `MAX_IMAGE_DIMENSION` (4000 px) per side. Violations raise `ImageTooLargeError` or `UnsupportedImageFormatError`. When ImageMagick (`convert`) is on `PATH`, oversized images are downsampled toward `TARGET_PPI` (200) for the slot and transparent PNG borders (e.g. around a signature) are trimmed first; without it, the original file is stamped as-is.
 
 ### `AcroForge::Schema`
 
@@ -152,8 +200,11 @@ Supported types: `string`, `select`, `boolean`, `money`, `date`, `email`, `numbe
 
 - `AcroForge::ValidationError`: raised by `Engine#validate_payload!` on type mismatch.
 - `AcroForge::RelabelError`: raised by `Relabeler.apply!` on malformed mapping YAML, invalid key names, or missing AcroForm.
+- `AcroForge::Error`: raised by `Engine#fill!` when the PDF rejects a value (e.g. a radio value that doesn't match any allowed option).
+- `AcroForge::ImageTooLargeError`: raised by `Engine#fill!` when an image to stamp exceeds the byte or pixel-dimension cap.
+- `AcroForge::UnsupportedImageFormatError`: raised by `Engine#fill!` when an image to stamp is neither a valid JPG nor PNG.
 
-Both errors inherit from `StandardError`. The CLI translates them to exit code `2` (validation errors) versus `1` (user errors like missing files); embedding callers can rescue them directly.
+Both image errors subclass `AcroForge::Error`. All inherit from `StandardError`. The CLI translates them to exit code `2` (validation errors) versus `1` (user errors like missing files); embedding callers can rescue them directly.
 
 ## Suppressing engine output
 
