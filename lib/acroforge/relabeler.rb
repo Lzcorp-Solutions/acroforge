@@ -94,14 +94,14 @@ module AcroForge
     # we use its proposals directly (no second compile). This lets callers
     # like the CLI's `bootstrap` subcommand share one compile pass with
     # Schema.infer instead of running the engine twice.
-    def propose(pdf_path, out:, schema: {}, mode: :merge, engine: nil)
+    def propose(pdf_path, out:, schema: {}, preserve: [], mode: :merge, engine: nil)
       existing = (mode == :merge && File.exist?(out)) ? YAML.load_file(out) : nil
 
       proposals = if engine
         engine.field_proposals
       else
         Dir.mktmpdir do |tmp|
-          e = AcroForge::Engine.new(pdf_path, schema: schema, normalized_dir: tmp)
+          e = AcroForge::Engine.new(pdf_path, schema: schema, preserve: preserve, normalized_dir: tmp)
           e.compile!
           e.field_proposals
         end
@@ -147,16 +147,21 @@ module AcroForge
     end
 
     def infer_type(proposal)
+      # Mirrors AcroForge::Schema#infer_type. Kept separate so Relabeler
+      # doesn't have to load the whole Schema module path during mapping
+      # propose. Keep these two in sync when you tweak either.
       case proposal[:pdf_field_type]
       when :button
         ((proposal[:options]&.size || 0) > 1) ? :select : :boolean
       when :choice
         :select
       else
-        label = proposal[:raw_label].to_s.downcase
+        # Normalize underscores to spaces so `\b`-anchored regexes match
+        # against snake_case names like `account_no`, `date_signed`.
+        label = proposal[:raw_label].to_s.downcase.tr("_", " ")
         case label
         when /amount|salary|income|balance|fee|tier3/ then :money
-        when /\bdate\b|birth|expiry|employed/ then :date
+        when /\bdate\b|\bdob\b|birth|expiry|employed/ then :date
         when /email/ then :email
         when /years|tenor|number of|\bno\.?\b/ then :number
         else :string

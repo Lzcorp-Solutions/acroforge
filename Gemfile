@@ -7,7 +7,10 @@ gemspec
 
 gem "rake", "~> 13.0"
 
-gem "rspec", "~> 3.0"
+group :development, :test do
+  gem "rspec", "~> 3.0"
+  gem "simplecov", "~> 0.22", require: false
+end
 
 # Lint tooling is grouped so it can be skipped (BUNDLE_WITHOUT=lint) on
 # CI's pre-3.2 matrix legs. Modern standard / rubocop transitively pull in

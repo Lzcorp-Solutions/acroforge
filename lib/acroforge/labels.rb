@@ -22,10 +22,20 @@ module AcroForge
       of at by in on to up from with as vs
     ].to_set
 
+    # Parenthetical content in form labels is UI hints, not field identity.
+    def strip_parenthetical(text)
+      text.to_s.gsub(/\s*\(.*?\)\s*/, " ").gsub(/\s+/, " ").strip
+    end
+
     def humanize(label)
       return label unless label.is_a?(String) && !label.empty?
 
-      result = fix_typos(label)
+      result = strip_parenthetical(label)
+      # Treat `_` as a word separator so snake_case names from preserved
+      # fields title-case correctly. Real PDF labels almost never contain
+      # underscores; snake_case keys passed through here always do.
+      result = result.tr("_", " ")
+      result = fix_typos(result)
       result = title_case(result)
       result.gsub(/\s+/, " ").strip
     end

@@ -80,19 +80,29 @@ Exit codes: `0` success, `1` user error (bad args, missing file), `2` validation
 ```ruby
 require "acroforge"
 
-# Compile a PDF and inspect what the heuristic found.
+# Inspect the fields a PDF declares (no compilation needed).
+engine = AcroForge::Engine.new("form.pdf")
+engine.fields        # => [{ name: "full_name", type: :text, alternate_name: nil }, ...]
+engine.field_names   # => ["full_name", ...]
+engine.any_fields?   # => true
+
+# Fill an already-clean PDF — fill! is standalone, compile! is NOT required.
+engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
+
+# Compile a messy PDF to clean its field names via the spatial heuristic.
 engine = AcroForge::Engine.new(
   "form.pdf",
-  schema: AcroForge::Schema.load("schema.yml"),   # or pass a Hash directly
-  overrides: {},                                  # optional per-PDF overrides
-  sections: ["Personal Details", "Loan Details"]  # optional section headers for scoping
+  schema:    AcroForge::Schema.load("schema.yml"),   # or pass a Hash directly
+  overrides: {},                                     # per-PDF target-key overrides
+  preserve:  %w[some_field_to_keep_verbatim],        # allowlist of names to never rename
+  sections:  ["Personal Details", "Loan Details"]    # optional section headers for scoping
 )
 result = engine.compile!
 # => { mapped: {...}, unmapped: [...], select_options: {...}, new_fields_detected: [...] }
+# Writes a `<form>_normalized.pdf` next to the source.
 
-# Fill a form with a payload.
-engine.validate_payload!(full_name: "Alice", email: "alice@example.com")
-engine.fill!({ full_name: "Alice", email: "alice@example.com" }, "filled.pdf")
+# To fill a compiled (normalized) template, point a new Engine at it:
+AcroForge::Engine.new("form_normalized.pdf").fill!(payload, "filled.pdf")
 
 # Generate a starter schema from a PDF.
 schema = AcroForge::Schema.infer("form.pdf")
@@ -107,9 +117,20 @@ AcroForge::Validator.valid?("alice@example.com", :email)  # => true
 AcroForge::Validator.valid?("not a date", :date)          # => false
 ```
 
+### Preserve cascade
+
+`compile!` keeps an existing field name verbatim — skipping the spatial heuristic for that field — when any of these match:
+
+1. **Explicit:** the name is in the `preserve:` kwarg.
+2. **Schema:** the name is already a canonical key in the supplied `schema:`.
+3. **Heuristic:** the name looks like a clean snake_case identifier (no `pageN_fieldM` / `TextN` / `ImageN` markers).
+
+The cascade is what stops `Schema.infer` on a clean PDF from synthesising garbage keys derived from adjacent radio-option labels or section headers.
+
 ### Errors
 
 - `AcroForge::ValidationError`: raised by `Engine#validate_payload!` on type mismatch.
+- `AcroForge::Error`: raised by `Engine#fill!` when the PDF rejects a value (e.g. a radio value that doesn't match any allowed option).
 - `AcroForge::RelabelError`: raised by `Relabeler.apply!` on malformed mapping YAML, invalid key names, or missing AcroForm.
 
 ## Schema format
@@ -157,7 +178,7 @@ AcroForge also accepts a legacy "shorthand" form where the value is just an arra
 _meta:
   source_pdf: broken_form.pdf
   generated_at: 2026-05-26T14:32:11Z
-  acroforge_version: 0.1.0
+  acroforge_version: 0.2.0
   total_fields: 98
 
 page0_field6:

@@ -5,28 +5,26 @@
 Schemas are YAML or JSON files in the "rich form":
 
 ```yaml
-full_name:
+first_name:
   type: string
-  variations:
-    - Full Name
-    - First Name
-    - Surname
 gender:
   type: select
-  variations:
-    - Gender
-    - Sex
   options:
     - male
     - female
+national_id:
+  type: string
+  variations:
+    - Ghana Card
+    - National ID
+    - Ecowas Identity Card Number
 amount_requested:
   type: money
-  variations:
-    - Amount Requested
-    - Loan Amount
 ```
 
-**Field keys** (`full_name`, `gender`, ...) become Ruby symbols. **`type`** is one of `string | select | boolean | money | date | email | number`. **`variations`** are the human-readable label strings to look for on the page. **`options`** are the allowed select values (for `select` and `boolean` types).
+**Field keys** (`first_name`, `gender`, ...) become Ruby symbols. **`type`** is one of `string | select | boolean | money | date | email | number`. **`options`** are the allowed select values (for `select` and `boolean` types).
+
+**`variations`** is *optional*. Include it only when a vendor renders the same logical field under a label that doesn't sanitize to your canonical key — e.g. listing `"Ghana Card"` and `"National ID"` under `:national_id` so the spatial heuristic resolves both to the same key. Per-PDF schemas produced by `schema infer` omit `variations:` when the field name already matches its canonical key.
 
 AcroForge also accepts a legacy "shorthand" form where the value is just an array of variations. `AcroForge::Schema.normalize` upgrades it to rich form on the way in:
 
@@ -43,11 +41,11 @@ The shorthand form is convenient when you're constructing schemas in Ruby code a
 
 `relabel propose` writes one of these. Edit the `key:` and `type:` values; the `meta:` blocks are advisory and get regenerated on the next `propose`.
 
-```yaml
+```yaml-vue
 _meta:
   source_pdf: broken_form.pdf
   generated_at: 2026-05-26T14:32:11Z
-  acroforge_version: 0.1.0
+  acroforge_version: {{ $version }}
   total_fields: 98
 
 page0_field6:

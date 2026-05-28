@@ -19,9 +19,9 @@ gem install acroforge
 
 That's it. The `acroforge` command is now on your `PATH` and runnable from any directory:
 
-```bash
+```bash-vue
 acroforge version
-# 0.1.0
+# {{ $version }}
 
 acroforge help
 ```
@@ -92,12 +92,12 @@ Restart your shell or source the rc file, then `acroforge version` should resolv
 
 ### Verifying the install
 
-```bash
+```bash-vue
 which acroforge
 # /home/you/.local/share/mise/shims/acroforge   (mise)
 # /home/you/.rbenv/shims/acroforge              (rbenv)
 # /home/you/.asdf/shims/acroforge               (asdf)
 
 acroforge version
-# 0.1.0
+# {{ $version }}
 ```

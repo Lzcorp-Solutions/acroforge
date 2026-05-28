@@ -40,16 +40,20 @@ Once the rename is applied, the PDF is permanently fixed. Any downstream tooling
 
 ## The shape of the gem
 
-AcroForge ships four public modules and a CLI:
+AcroForge ships six public modules and a CLI:
 
 | Module                  | What it's for                                            |
 | ----------------------- | -------------------------------------------------------- |
 | `AcroForge::Engine`     | Compile, validate, and fill an AcroForm.                 |
-| `AcroForge::Schema`     | Declare and infer canonical field schemas.               |
+| `AcroForge::Schema`     | Declare, infer, merge, load and dump canonical schemas.  |
 | `AcroForge::Relabeler`  | Produce and apply the rename mapping.                    |
+| `AcroForge::Preparer`   | Disambiguate AcroForms that ship with duplicate field names. |
+| `AcroForge::Annotator`  | Render a labeled PDF for visual review of proposals.     |
 | `AcroForge::Validator`  | Type checks on payload values.                           |
 
 The CLI (`acroforge`) wraps the same module surface. Pick whichever fits your workflow. The engine works the same either way.
+
+> **`fill!` is standalone.** If the PDF's field names are already semantic (yours, or output from `acroforge relabel apply`), you can skip the relabeling workflow entirely and call `Engine#fill!` directly. The four-phase workflow exists for *vendor* PDFs that ship with garbage names.
 
 ## Where to go next
 

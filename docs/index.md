@@ -7,7 +7,7 @@ titleTemplate: false
 <section class="af-section af-section--dark af-hero">
   <div class="af-section-inner af-hero-grid">
     <div>
-      <div class="af-eyebrow"><span class="em">AcroForge</span><span class="sep">/</span>Ruby PDF toolkit<span class="sep">/</span>v0.1.0</div>
+      <div class="af-eyebrow"><span class="em">AcroForge</span><span class="sep">/</span>Ruby PDF toolkit<span class="sep">/</span><VersionBadge /></div>
       <h1 class="af-headline">AcroForms,<br /><em>forged clean.</em></h1>
       <p class="af-lede">Take a broken-named PDF form and make it programmatically fillable in three commands. Heuristic discovery, human-reviewable mapping, deterministic rename.</p>
       <div class="af-ctas">

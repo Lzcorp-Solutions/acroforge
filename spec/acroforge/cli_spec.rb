@@ -67,4 +67,67 @@ RSpec.describe AcroForge::CLI do
     data = YAML.load_file(out_path)
     expect(data).to include("_meta")
   end
+
+  it "relabel propose --schema honours an existing schema during compile" do
+    schema_path = File.join(@tmp, "schema.yml")
+    mapping_path = File.join(@tmp, "mapping.yml")
+    File.write(schema_path, {full_name: {type: :string, variations: ["Customer Name"]}}.to_yaml)
+
+    code, _, _ = capture do
+      described_class.run(["relabel", "propose", garbage_fixture,
+        "--schema", schema_path, "--out", mapping_path])
+    end
+    expect(code).to eq(0)
+    expect(File.exist?(mapping_path)).to be true
+  end
+
+  it "relabel propose --overwrite replaces any prior mapping at the out path" do
+    out_path = File.join(@tmp, "mapping.yml")
+    File.write(out_path, "stale: { key: should_disappear }\n")
+
+    code, _, _ = capture do
+      described_class.run(["relabel", "propose", garbage_fixture,
+        "--out", out_path, "--overwrite"])
+    end
+    expect(code).to eq(0)
+    data = YAML.load_file(out_path)
+    expect(data).not_to have_key("stale")
+  end
+
+  it "schema merge folds a mapping's keys into an existing schema" do
+    schema_path = File.join(@tmp, "schema.yml")
+    mapping_path = File.join(@tmp, "mapping.yml")
+    File.write(schema_path, {full_name: {type: :string}}.to_yaml)
+    File.write(mapping_path, {
+      "page0_field6" => {"key" => "email", "type" => "email", "meta" => {"raw_label" => "Email Address"}}
+    }.to_yaml)
+
+    code, out, _ = capture { described_class.run(["schema", "merge", mapping_path, "--schema", schema_path]) }
+    expect(code).to eq(0)
+    expect(out).to match(/added|updated/i)
+
+    merged = AcroForge::Schema.load(schema_path)
+    expect(merged.keys).to include(:full_name, :email)
+  end
+
+  it "relabel apply rewrites field[:T] in place against a mapping file" do
+    out_pdf = File.join(@tmp, "garbage.pdf")
+    require "fileutils"
+    FileUtils.cp(garbage_fixture, out_pdf)
+
+    mapping_path = File.join(@tmp, "mapping.yml")
+    code, _, _ = capture { described_class.run(["relabel", "propose", out_pdf, "--out", mapping_path]) }
+    expect(code).to eq(0)
+
+    require "hexapdf"
+    names_before = HexaPDF::Document.open(out_pdf).acro_form.each_field.map(&:full_field_name)
+
+    code, _, _ = capture { described_class.run(["relabel", "apply", out_pdf, mapping_path]) }
+    expect(code).to eq(0)
+
+    # Some fields should have been renamed (unmapped ones may legitimately stay).
+    names_after = HexaPDF::Document.open(out_pdf).acro_form.each_field.map(&:full_field_name)
+    expect(names_after).not_to eq(names_before)
+    expect(names_after.count { |n| n.match?(/\Apage\d/) }).to be < names_before.count { |n| n.match?(/\Apage\d/) }
+  end
 end
