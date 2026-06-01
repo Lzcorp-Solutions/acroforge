@@ -2,6 +2,7 @@
 
 require "optparse"
 require "yaml"
+require "json"
 require_relative "../acroforge"
 
 module AcroForge
@@ -11,7 +12,7 @@ module AcroForge
     EXIT_VALIDATION_ERROR = 2
     EXIT_INTERNAL_ERROR = 3
 
-    SUBCOMMANDS = %w[schema relabel compile bootstrap annotate prepare version help].freeze
+    SUBCOMMANDS = %w[fields schema relabel compile bootstrap annotate prepare version help].freeze
 
     module_function
 
@@ -48,6 +49,7 @@ module AcroForge
         acroforge: PDF AcroForm engine + relabeler
 
         Usage:
+          acroforge fields <pdf>           [--json]
           acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
           acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
           acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
@@ -99,6 +101,42 @@ module AcroForge
       parts << "#{result[:skipped_null]} skipped (no key)" if result[:skipped_null] > 0
       parts << "#{result[:stale]} stale" if result[:stale] > 0
       puts "Applied to #{pdf}: #{parts.join(", ")}."
+    end
+
+    def cmd_fields(argv)
+      json = false
+      OptionParser.new { |o| o.on("--json") { json = true } }.parse!(argv)
+      pdf = argv.shift
+      raise ArgumentError, "usage: acroforge fields <pdf> [--json]" unless pdf
+      raise Errno::ENOENT, pdf unless File.exist?(pdf)
+
+      fields = AcroForge::Engine.new(pdf).fields
+
+      if json
+        puts JSON.pretty_generate(fields)
+      elsif fields.empty?
+        puts "No AcroForm fields found in #{pdf}."
+      else
+        print_fields_table(fields)
+      end
+      EXIT_OK
+    end
+
+    def print_fields_table(fields)
+      headers = ["NAME", "TYPE", "ALTERNATE NAME"]
+      rows = fields.map { |f| [f[:name].to_s, f[:type].to_s, format_alternate_name(f[:alternate_name])] }
+      widths = headers.each_with_index.map { |h, i| ([h] + rows.map { |r| r[i] }).map(&:length).max }
+      ([headers] + rows).each do |row|
+        puts row.each_with_index.map { |cell, i| cell.ljust(widths[i]) }.join("  ").rstrip
+      end
+    end
+
+    def format_alternate_name(alt)
+      case alt
+      when nil then "—"
+      when Hash then "{#{alt.map { |k, v| "#{k}: #{v.inspect}" }.join(", ")}}"
+      else alt.to_s
+      end
     end
 
     def cmd_schema(argv)

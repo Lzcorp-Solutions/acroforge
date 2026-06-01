@@ -116,6 +116,17 @@ RSpec.describe AcroForge::Engine do
     end
   end
 
+  describe "#compile! choice-field mapping" do
+    it "auto-maps a choice field from its nearby label and persists its options" do
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+
+      expect(result[:mapped].values.map(&:to_s)).to include("marital_status")
+      expect(result[:select_options]["marital_status"]).to include("single" => "Single", "married" => "Married")
+      expect(result[:unmapped]).not_to include("page0_field11")
+    end
+  end
+
   describe ".field_index" do
     # Build a tiny PDF in-memory with three fields all named "date" to
     # verify the synthetic naming scheme.
@@ -189,6 +200,62 @@ RSpec.describe AcroForge::Engine do
     it "any_fields? is true for an AcroForm PDF and false for one without" do
       expect(described_class.new(semantic_fixture, normalized_dir: @tmp).any_fields?).to be true
       expect(described_class.new(no_acroform_fixture, normalized_dir: @tmp).any_fields?).to be false
+    end
+
+    it "decodes a JSON options map persisted in /TU into a Hash" do
+      pdf_path = File.join(@tmp, "options_map.pdf")
+      doc = HexaPDF::Document.new
+      page = doc.pages.add
+      form = doc.acro_form(create: true)
+      title = form.create_radio_button("title")
+      title.create_widget(page, Rect: [0, 0, 12, 12], value: :"0")
+      title.create_widget(page, Rect: [20, 0, 32, 12], value: :"1")
+      # What compile! persists for button/choice fields (engine.rb: field[:TU] = options_map.to_json).
+      title[:TU] = {"dr" => "0", "mrs" => "1"}.to_json
+      doc.write(pdf_path)
+
+      fields = described_class.new(pdf_path, normalized_dir: @tmp).fields
+      expect(fields.first[:alternate_name]).to eq({dr: "0", mrs: "1"})
+    end
+
+    it "leaves a plain-text /TU alternate name as a String" do
+      pdf_path = File.join(@tmp, "tooltip.pdf")
+      doc = HexaPDF::Document.new
+      page = doc.pages.add
+      form = doc.acro_form(create: true)
+      field = form.create_text_field("last_name")
+      field.create_widget(page, Rect: [0, 0, 100, 20])
+      field[:TU] = "Your family name"
+      doc.write(pdf_path)
+
+      fields = described_class.new(pdf_path, normalized_dir: @tmp).fields
+      expect(fields.first[:alternate_name]).to eq("Your family name")
+    end
+
+    it "leaves a missing /TU as nil" do
+      fields = described_class.new(semantic_fixture, normalized_dir: @tmp).fields
+      expect(fields.map { |f| f[:alternate_name] }.uniq).to eq([nil])
+    end
+  end
+
+  describe "options-map round trip (compile! → fields → fill!)" do
+    it "discovers radio options, persists them to /TU, and resolves payload values through them" do
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      result = silence_stdout { engine.compile! }
+
+      expect(result[:select_options]["gender"]).to include("male" => "male", "female" => "female")
+
+      normalized = described_class.new(engine.normalized_path, normalized_dir: @tmp)
+      gender = normalized.fields.find { |f| f[:name] == "gender" }
+      expect(gender[:alternate_name]).to eq({male: "male", female: "female"})
+
+      out = File.join(@tmp, "filled.pdf")
+      silence_stdout { normalized.fill!({gender: "Female"}, out) }
+
+      doc = HexaPDF::Document.open(out)
+      field = doc.acro_form.each_field.find { |f| f.full_field_name == "gender" }
+      on_widget = field.each_widget.find { |w| w[:AP][:N].value.key?(:female) }
+      expect(on_widget[:AS]).to eq(:female)
     end
   end
 
@@ -437,7 +504,7 @@ RSpec.describe AcroForge::Engine do
     it "raises ImageTooLargeError when the file exceeds MAX_IMAGE_BYTES" do
       pdf = pdf_with_image_field(File.join(@tmp, "image.pdf"))
       huge = File.join(@tmp, "huge.png")
-      File.binwrite(huge, "\x89PNG\r\n\x1a\n" + ("x" * (AcroForge::Engine::MAX_IMAGE_BYTES + 1)))
+      File.binwrite(huge, "\x89PNG\r\n\x1a\n" + ("x" * (AcroForge::ImageStamper::MAX_IMAGE_BYTES + 1)))
       out = File.join(@tmp, "filled.pdf")
 
       expect {
@@ -456,45 +523,6 @@ RSpec.describe AcroForge::Engine do
       expect {
         silence_stdout do
           described_class.new(pdf, normalized_dir: @tmp).fill!({passport_photo: txt}, out)
-        end
-      }.to raise_error(AcroForge::UnsupportedImageFormatError)
-    end
-
-    it "raises UnsupportedImageFormatError on an empty file" do
-      pdf = pdf_with_image_field(File.join(@tmp, "image.pdf"))
-      empty = File.join(@tmp, "empty.png")
-      File.binwrite(empty, "")
-      out = File.join(@tmp, "filled.pdf")
-
-      expect {
-        silence_stdout do
-          described_class.new(pdf, normalized_dir: @tmp).fill!({passport_photo: empty}, out)
-        end
-      }.to raise_error(AcroForge::UnsupportedImageFormatError)
-    end
-
-    it "raises UnsupportedImageFormatError on a truncated PNG header" do
-      pdf = pdf_with_image_field(File.join(@tmp, "image.pdf"))
-      truncated = File.join(@tmp, "truncated.png")
-      File.binwrite(truncated, "\x89PNG\r\n\x1A\n\x00\x00\x00\rIHDR")
-      out = File.join(@tmp, "filled.pdf")
-
-      expect {
-        silence_stdout do
-          described_class.new(pdf, normalized_dir: @tmp).fill!({passport_photo: truncated}, out)
-        end
-      }.to raise_error(AcroForge::UnsupportedImageFormatError, /truncated/)
-    end
-
-    it "raises UnsupportedImageFormatError on a truncated JPEG (no SOF)" do
-      pdf = pdf_with_image_field(File.join(@tmp, "image.pdf"))
-      truncated = File.join(@tmp, "truncated.jpg")
-      File.binwrite(truncated, "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00")
-      out = File.join(@tmp, "filled.pdf")
-
-      expect {
-        silence_stdout do
-          described_class.new(pdf, normalized_dir: @tmp).fill!({passport_photo: truncated}, out)
         end
       }.to raise_error(AcroForge::UnsupportedImageFormatError)
     end
@@ -522,22 +550,6 @@ RSpec.describe AcroForge::Engine do
       }
       expect(mapped["Image37_af_image"]).to eq(:passport_photo)
       expect(mapped["Image112_af_image"]).to eq(:signature)
-    end
-
-    it "raises ImageTooLargeError when pixel dimensions exceed MAX_IMAGE_DIMENSION" do
-      pdf = pdf_with_image_field(File.join(@tmp, "image.pdf"))
-      huge_png = File.join(@tmp, "huge.png")
-      header = "\x89PNG\r\n\x1A\n".b
-      ihdr_chunk_header = "\x00\x00\x00\rIHDR".b
-      ihdr_data = [10_000, 10_000, 8, 6, 0, 0, 0].pack("NNCCCCC")
-      File.binwrite(huge_png, header + ihdr_chunk_header + ihdr_data)
-      out = File.join(@tmp, "filled.pdf")
-
-      expect {
-        silence_stdout do
-          described_class.new(pdf, normalized_dir: @tmp).fill!({passport_photo: huge_png}, out)
-        end
-      }.to raise_error(AcroForge::ImageTooLargeError, /per side/)
     end
   end
 end

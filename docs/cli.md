@@ -3,6 +3,7 @@
 ## Synopsis
 
 ```
+acroforge fields <pdf>           [--json]
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
 acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
@@ -19,6 +20,7 @@ acroforge help
 
 | Subcommand | What it does |
 |---|---|
+| `fields` | Lists every AcroForm field — name, type, alternate name — as a table or JSON. Read-only; the quickest way to see what's inside a PDF. |
 | `schema infer` | Runs the heuristic on a PDF and writes a starter schema (canonical key → type + variations). Advisory; you review and edit. |
 | `schema merge` | Folds hand-reviewed decisions from a `mapping.yml` back into a `schema.yml`. Stops the mapping and schema from drifting apart over time. |
 | `relabel propose` | Writes a YAML mapping file proposing a semantic name for every AcroForm field. Sorted by page → top-to-bottom → left-to-right. Default mode `--merge` preserves any `key`/`type` values you've already edited. |
@@ -49,6 +51,44 @@ By default, `bootstrap`, `schema infer`, `relabel propose`, and `relabel apply` 
 | `1` | User error (bad arguments, missing file) |
 | `2` | Validation error (`ValidationError`, `RelabelError`) |
 | `3` | Internal error |
+
+---
+
+## `fields`
+
+Lists every AcroForm field in the PDF — internal name, type, and alternate name (`/TU`) — without modifying anything. Run it before deciding whether a PDF needs relabeling, or after `compile!` to confirm what got persisted.
+
+```bash
+acroforge fields application.pdf
+# NAME                 TYPE    ALTERNATE NAME
+# full_name            text    —
+# gender               button  {male: "male", female: "female"}
+# marital_status       choice  {single: "Single", married: "Married", divorced: "Divorced", widowed: "Widowed"}
+# passport_photo       button  —
+```
+
+For compiled (normalized) PDFs, button and choice fields show their decoded options map: the payload values `fill!` accepts on the left, the PDF's internal export values on the right. Plain tooltips display as-is; fields without a `/TU` entry show `—`.
+
+```bash
+acroforge fields application.pdf --json
+```
+
+`--json` emits the same data as a JSON array — option maps as nested objects, missing alternate names as `null` — for piping into `jq` or other tools:
+
+```json
+[
+  {
+    "name": "gender",
+    "type": "button",
+    "alternate_name": {
+      "male": "male",
+      "female": "female"
+    }
+  }
+]
+```
+
+A PDF with no AcroForm fields prints `No AcroForm fields found in <pdf>.` and still exits `0` — absence of fields is an answer, not an error.
 
 ---
 

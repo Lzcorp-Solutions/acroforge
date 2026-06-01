@@ -54,7 +54,7 @@ The cascade is what stops `Schema.infer` on a clean PDF from synthesising garbag
 
 #### Field introspection
 
-`engine.fields` returns one hash per AcroForm field with `:name`, `:type` (`:text | :button | :choice | :other`), and `:alternate_name`. `engine.field_names` and `engine.any_fields?` are convenience shortcuts. None of these require `compile!`.
+`engine.fields` returns one hash per AcroForm field with `:name`, `:type` (`:text | :button | :choice | :other`), and `:alternate_name`. For button/choice fields in a compiled (normalized) PDF, `:alternate_name` is the decoded options map — a hash of payload values to PDF export values, e.g. `{ male: "0", female: "1" }`; for other fields it is the raw `/TU` tooltip string, or `nil` when the PDF doesn't set one. `engine.field_names` and `engine.any_fields?` are convenience shortcuts. None of these require `compile!`. The CLI equivalent is [`acroforge fields <pdf> [--json]`](./cli#fields).
 
 `compile!` returns a hash with four keys:
 
