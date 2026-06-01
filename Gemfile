@@ -18,3 +18,10 @@ end
 group :lint do
   gem "standard", "~> 1.3"
 end
+
+# bin/console needs irb, which is no longer a default gem on Ruby >= 4.0.
+# Grouped (not default) so CI's test matrix can skip it: irb pulls rdoc,
+# which pulls erb >= 6 — uninstallable on the pre-3.2 legs.
+group :console do
+  gem "irb"
+end
