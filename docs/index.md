@@ -2,7 +2,6 @@
 layout: home
 title: "AcroForge: AcroForms, forged clean."
 titleTemplate: false
-footer: false
 ---
 
 <section class="af-section af-section--dark af-hero">
@@ -173,17 +172,44 @@ AcroForge::Relabeler.apply!("form.pdf", "mapping.yml")
 </section>
 
 <section class="af-section af-cta">
-  <div class="af-section-inner">
-    <h2>Stop hand-mapping <em>page0_field6</em>.</h2>
-    <p>Add AcroForge to your Gemfile, then walk through the quick start. Five minutes to a fillable PDF.</p>
-    <div class="af-ctas">
-      <a class="af-btn af-btn-dark" href="./quick-start">Quick start</a>
-      <a class="af-btn af-btn-light" href="https://github.com/Lzcorp-Solutions/acroforge">GitHub</a>
+  <div class="af-section-inner af-cta-grid">
+    <div>
+      <h2>Stop hand-mapping <em>page0_field6</em>.</h2>
+      <p>Add AcroForge to your Gemfile, then walk through the quick start. Five minutes to a fillable PDF.</p>
+      <div class="af-ctas">
+        <a class="af-btn af-btn-dark" href="./quick-start">Quick start</a>
+        <a class="af-btn af-btn-light" href="https://github.com/Lzcorp-Solutions/acroforge">GitHub</a>
+      </div>
     </div>
-    <div class="af-cta-meta">
-      <span>AcroForge <VersionBadge /> — MIT License</span>
-      <span>© 2026–present Maxwell Nana Forson</span>
-      <a href="https://rubygems.org/gems/acroforge" target="_blank" rel="noreferrer">rubygems.org/gems/acroforge</a>
+    <div class="af-stepper" aria-label="From install to fillable PDF in four steps">
+      <div class="af-step">
+        <span class="af-step-num">01</span>
+        <div class="af-step-body">
+          <div class="af-step-label">Add the gem</div>
+          <div class="af-step-cmd">gem "acroforge"</div>
+        </div>
+      </div>
+      <div class="af-step">
+        <span class="af-step-num">02</span>
+        <div class="af-step-body">
+          <div class="af-step-label">Bootstrap</div>
+          <div class="af-step-cmd">acroforge bootstrap form.pdf</div>
+        </div>
+      </div>
+      <div class="af-step">
+        <span class="af-step-num">03</span>
+        <div class="af-step-body">
+          <div class="af-step-label">Review the mapping</div>
+          <div class="af-step-cmd">$EDITOR mapping.yml</div>
+        </div>
+      </div>
+      <div class="af-step">
+        <span class="af-step-num">04</span>
+        <div class="af-step-body">
+          <div class="af-step-label">Apply</div>
+          <div class="af-step-cmd">acroforge relabel apply <span class="accent">→ fillable PDF</span></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
