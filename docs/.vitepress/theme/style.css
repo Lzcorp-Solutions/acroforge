@@ -716,32 +716,70 @@ body { font-family: var(--af-font-body); }
 
 .dark .af-cta p { color: var(--af-on-dark-2); }
 
-.af-cta-meta {
-  margin-top: 5rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--af-border);
-  font-family: var(--af-font-mono);
-  font-size: 0.78rem;
-  color: var(--af-text-3);
+/* CTA two-column: copy left, four-step stepper right (mirrors the hero) */
+.af-cta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: 5rem;
+  align-items: center;
+}
+
+@media (max-width: 980px) {
+  .af-cta-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3.5rem;
+  }
+}
+
+.af-stepper {
   display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
 }
 
-.dark .af-cta-meta {
+.af-step {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--af-border);
+}
+
+.af-step:last-child {
+  border-bottom: 1px solid var(--af-border);
+}
+
+.dark .af-step,
+.dark .af-step:last-child {
   border-color: var(--vp-c-divider);
-  color: var(--af-on-dark-3);
 }
 
-.af-cta-meta a {
-  color: inherit;
-  text-decoration: none;
-  border-bottom: 1px solid currentColor;
-  transition: color 100ms ease;
+.af-step-num {
+  font-family: var(--af-font-mono);
+  font-size: 0.85rem;
+  color: var(--af-accent);
+  padding-top: 0.2rem;
 }
 
-.af-cta-meta a:hover { color: var(--af-accent); }
+.af-step-label {
+  font-family: var(--af-font-display);
+  font-size: 1.2rem;
+  font-variation-settings: "opsz" 36, "SOFT" 60, "WONK" 0;
+  letter-spacing: -0.01em;
+  color: var(--af-text);
+  margin-bottom: 0.3rem;
+}
+
+.dark .af-step-label { color: var(--vp-c-text-1); }
+
+.af-step-cmd {
+  font-family: var(--af-font-mono);
+  font-size: 0.8rem;
+  color: var(--af-text-3);
+}
+
+.dark .af-step-cmd { color: var(--af-on-dark-3); }
+
+.af-step-cmd .accent { color: var(--af-accent); }
 
 /* ============================================================== */
 /* Markdown code blocks inside cards — dark aesthetic + readable  */
@@ -820,13 +858,6 @@ body { font-family: var(--af-font-body); }
   display: none !important;
 }
 
-/* The home page's CTA carries its own .af-cta-meta footer (version, author,
-   gem link), so the global VitePress footer would just duplicate it. Hide it
-   here only — doc pages still rely on it for license/copyright. */
-.VPHome .VPFooter {
-  display: none !important;
-}
-
 /* Remove home-page-only chrome that constrains our sections */
 .VPHome {
   padding: 0 !important;
@@ -863,9 +894,40 @@ body { font-family: var(--af-font-body); }
   border-top: 1px solid var(--af-border);
   font-family: var(--af-font-mono);
   font-size: 0.78rem;
+  color: var(--af-text-3);
 }
 
-.dark .VPFooter { border-color: var(--vp-c-divider); }
+.dark .VPFooter {
+  border-color: var(--vp-c-divider);
+  color: var(--af-on-dark-3);
+}
+
+/* The footer message holds a three-part bar (version · author · gem link).
+   Spread it across the row; stack it on narrow screens. */
+.VPFooter .message {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: inherit;
+}
+
+.VPFooter .message a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  transition: color 100ms ease;
+}
+
+.VPFooter .message a:hover { color: var(--af-accent); }
+
+@media (max-width: 520px) {
+  .VPFooter .message {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+}
 
 /* ============================================================== */
 /* Small-screen tightening                                        */
