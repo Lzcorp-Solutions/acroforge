@@ -2,6 +2,7 @@
 layout: home
 title: "AcroForge: AcroForms, forged clean."
 titleTemplate: false
+footer: false
 ---
 
 <section class="af-section af-section--dark af-hero">
