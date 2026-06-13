@@ -3,11 +3,12 @@
 ## Synopsis
 
 ```
+acroforge fields <pdf>           [--json]
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
 acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
 acroforge relabel apply <pdf> <mapping.yml> [--annotate[=PATH]] [-v]
-acroforge compile <pdf>          [--schema schema.yml]
+acroforge compile <pdf>          [--schema schema.yml] [--out normalized.pdf | --overwrite]
 acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml] [-v]
 acroforge annotate <pdf>         [--mapping mapping.yml] [--out annotated.pdf]
 acroforge prepare <pdf>          [--out prepared.pdf] [--schema schema.yml]
@@ -19,6 +20,7 @@ acroforge help
 
 | Subcommand | What it does |
 |---|---|
+| `fields` | Lists every AcroForm field — name, type, alternate name — as a table or JSON. Read-only; the quickest way to see what's inside a PDF. |
 | `schema infer` | Runs the heuristic on a PDF and writes a starter schema (canonical key → type + variations). Advisory; you review and edit. |
 | `schema merge` | Folds hand-reviewed decisions from a `mapping.yml` back into a `schema.yml`. Stops the mapping and schema from drifting apart over time. |
 | `relabel propose` | Writes a YAML mapping file proposing a semantic name for every AcroForm field. Sorted by page → top-to-bottom → left-to-right. Default mode `--merge` preserves any `key`/`type` values you've already edited. |
@@ -49,6 +51,44 @@ By default, `bootstrap`, `schema infer`, `relabel propose`, and `relabel apply` 
 | `1` | User error (bad arguments, missing file) |
 | `2` | Validation error (`ValidationError`, `RelabelError`) |
 | `3` | Internal error |
+
+---
+
+## `fields`
+
+Lists every AcroForm field in the PDF — internal name, type, and alternate name (`/TU`) — without modifying anything. Run it before deciding whether a PDF needs relabeling, or after `compile!` to confirm what got persisted.
+
+```bash
+acroforge fields application.pdf
+# NAME                 TYPE    ALTERNATE NAME
+# full_name            text    —
+# gender               button  {male: "male", female: "female"}
+# marital_status       choice  {single: "Single", married: "Married", divorced: "Divorced", widowed: "Widowed"}
+# passport_photo       button  —
+```
+
+For compiled (normalized) PDFs, button and choice fields show their decoded options map: the payload values `fill!` accepts on the left, the PDF's internal export values on the right. Plain tooltips display as-is; fields without a `/TU` entry show `—`.
+
+```bash
+acroforge fields application.pdf --json
+```
+
+`--json` emits the same data as a JSON array — option maps as nested objects, missing alternate names as `null` — for piping into `jq` or other tools:
+
+```json
+[
+  {
+    "name": "gender",
+    "type": "button",
+    "alternate_name": {
+      "male": "male",
+      "female": "female"
+    }
+  }
+]
+```
+
+A PDF with no AcroForm fields prints `No AcroForm fields found in <pdf>.` and still exits `0` — absence of fields is an answer, not an error.
 
 ---
 
@@ -177,11 +217,28 @@ date#2:                   # third occurrence
 
 ## `compile`
 
-Diagnostic command. Runs the engine pipeline and prints how many fields were mapped versus unmapped. Does not write any files.
+Runs the engine pipeline, prints how many fields were mapped versus unmapped, and writes the normalized template. By default the normalized PDF lands next to the input as `<base>_normalized.pdf`.
 
 ```bash
 acroforge compile application.pdf --schema schema.yml
 # Mapped: 65, Unmapped: 5
+# Wrote application_normalized.pdf: normalized template.
+```
+
+Pass `--out PATH` to write the normalized template to an explicit path instead:
+
+```bash
+acroforge compile application.pdf --out build/application_clean.pdf
+# Mapped: 65, Unmapped: 5
+# Wrote build/application_clean.pdf: normalized template.
+```
+
+Pass `--overwrite` to rewrite the input PDF in place — no separate `_normalized.pdf` artifact is produced. `--out` and `--overwrite` cannot be combined.
+
+```bash
+acroforge compile application.pdf --overwrite
+# Mapped: 65, Unmapped: 5
+# Wrote application.pdf (in place): normalized template.
 ```
 
 Use this after editing your schema to check heuristic coverage before committing to a full `relabel propose` run. Unlike the other subcommands, `compile` always prints the engine's per-field log — that's its purpose.

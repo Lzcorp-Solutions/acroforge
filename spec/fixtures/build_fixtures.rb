@@ -51,10 +51,14 @@ def draw_field(canvas, page, form, spec)
       rg.create_widget(page, Rect: [xo, y, xo + 14, y + 14], value: opt[:value])
       draw_field_label(canvas, opt[:text], xo + 18, y + 2)
     end
+    # Real vendor forms carry /AP streams; without them compile!'s
+    # options-map discovery has nothing to read.
+    rg.create_appearances
 
   when :checkbox
     cb = form.create_check_box(spec[:name])
     cb.create_widget(page, Rect: [field_x, y, field_x + 14, y + 14])
+    cb.create_appearances
 
   when :choice
     field = form.create_combo_box(spec[:name], option_items: spec[:choices])

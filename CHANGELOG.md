@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [0.3.0] - 2026-06-01
+
+### Added
+
+- **`acroforge fields <pdf>` CLI subcommand** — lists every AcroForm field's name, type, and alternate name as an aligned table, or as JSON with `--json`. Decoded options maps render inline (table) or as nested objects (JSON). A PDF without an AcroForm prints a notice and still exits `0`.
+- **Configurable normalized output path for `compile!`** — `Engine#compile!` now accepts a `normalized_out:` kwarg to write the normalized PDF to an exact path; omitting it keeps the existing constructor-derived `<base>_normalized.pdf` location, byte-for-byte. Passing `normalized_out:` equal to the template path overwrites it in place safely (staged through a temp file, then moved). The `acroforge compile` CLI now persists the normalized template by default — next to the input as `<base>_normalized.pdf` — and gains a `--out PATH` flag to send it to an explicit path plus an `--overwrite` flag to rewrite the input PDF in place (`--out` and `--overwrite` are mutually exclusive).
+
+### Changed
+
+- **`Engine#fields` decodes persisted options maps.** When `/TU` holds the JSON options map that `compile!` writes for button/choice fields, `:alternate_name` is now returned as a symbol-keyed Hash (e.g. `{ male: "0", female: "1" }`) instead of the raw JSON string. Plain-text tooltips and missing `/TU` entries are unaffected (still String / `nil`).
+- **Image stamping extracted to `AcroForge::ImageStamper`** (internal). `Engine#fill!` behavior, the `ImageTooLargeError` / `UnsupportedImageFormatError` classes, and the validation rules are unchanged; the `MAX_IMAGE_BYTES` / `MAX_IMAGE_DIMENSION` / `TARGET_PPI` constants now live on `ImageStamper` instead of `Engine`.
+
+### Fixed
+
+- **Choice fields now auto-map.** `compile!` built options maps for combo/list boxes from `/Opt` but never ran the spatial label lookup on them, so a garbage-named choice field always landed in `unmapped` and its options were discarded. Choice fields now get the same nearest-label resolution as text fields, and their options persist to `/TU` and `select_options`.
+
+### Internal
+
+- Synthetic fixture PDFs now carry `/AP` appearance streams on radio/checkbox widgets, so `compile!`'s options-map discovery runs against them in CI. New round-trip spec covers compile! → fields → fill! through the persisted `/TU` map.
+
 ## [0.2.0] - 2026-05-28
 
 ### Changed (breaking)

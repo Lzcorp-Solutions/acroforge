@@ -56,17 +56,19 @@ $ acroforge bootstrap broken_form.pdf
 ## CLI
 
 ```text
+acroforge fields <pdf>           [--json]
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite]
 acroforge relabel apply <pdf> <mapping.yml>
-acroforge compile <pdf>          [--schema schema.yml]
+acroforge compile <pdf>          [--schema schema.yml] [--out normalized.pdf | --overwrite]
 acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml]
 acroforge version
 acroforge help
 ```
 
 | Subcommand        | What it does                                                                                                                                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fields`          | Lists every AcroForm field — name, type, alternate name — as a table, or as JSON with `--json`. Read-only; the quickest way to see what's inside a PDF.                                                        |
 | `schema infer`    | Runs the heuristic on a PDF and writes a starter schema (canonical key → type + variations). Advisory; you review and edit.                                                                                    |
 | `relabel propose` | Writes a YAML mapping file proposing a semantic name for every AcroForm field. Sorted by page → top-to-bottom → left-to-right. Default mode `--merge` preserves any `key`/`type` values you've already edited. |
 | `relabel apply`   | Reads a corrected mapping file and rewrites `field[:T]` / `field[:TU]` in the source PDF in place. Auto-disambiguates collisions (`full_name`, `full_name_1`, ...).                                            |
@@ -178,7 +180,7 @@ AcroForge also accepts a legacy "shorthand" form where the value is just an arra
 _meta:
   source_pdf: broken_form.pdf
   generated_at: 2026-05-26T14:32:11Z
-  acroforge_version: 0.2.0
+  acroforge_version: 0.3.0
   total_fields: 98
 
 page0_field6:

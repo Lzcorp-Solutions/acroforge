@@ -14,7 +14,7 @@ jobs:
       matrix:
         ruby: ['2.7', '3.1', '3.3']
     env:
-      BUNDLE_WITHOUT: lint
+      BUNDLE_WITHOUT: lint:console
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -29,6 +29,8 @@ jobs:
   lint:
     name: standardrb
     runs-on: ubuntu-latest
+    env:
+      BUNDLE_WITHOUT: console
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1

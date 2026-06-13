@@ -2,6 +2,7 @@
 
 require "optparse"
 require "yaml"
+require "json"
 require_relative "../acroforge"
 
 module AcroForge
@@ -11,7 +12,7 @@ module AcroForge
     EXIT_VALIDATION_ERROR = 2
     EXIT_INTERNAL_ERROR = 3
 
-    SUBCOMMANDS = %w[schema relabel compile bootstrap annotate prepare version help].freeze
+    SUBCOMMANDS = %w[fields schema relabel compile bootstrap annotate prepare version help].freeze
 
     module_function
 
@@ -48,11 +49,12 @@ module AcroForge
         acroforge: PDF AcroForm engine + relabeler
 
         Usage:
+          acroforge fields <pdf>           [--json]
           acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c] [-v]
           acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
           acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
           acroforge relabel apply <pdf> <mapping.yml> [--annotate[=PATH]] [-v]
-          acroforge compile <pdf>          [--schema schema.yml]
+          acroforge compile <pdf>          [--schema schema.yml] [--out normalized.pdf | --overwrite]
           acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml] [-v]
           acroforge annotate <pdf>         [--mapping mapping.yml] [--out annotated.pdf]
           acroforge prepare <pdf>          [--out prepared.pdf] [--schema schema.yml]
@@ -99,6 +101,42 @@ module AcroForge
       parts << "#{result[:skipped_null]} skipped (no key)" if result[:skipped_null] > 0
       parts << "#{result[:stale]} stale" if result[:stale] > 0
       puts "Applied to #{pdf}: #{parts.join(", ")}."
+    end
+
+    def cmd_fields(argv)
+      json = false
+      OptionParser.new { |o| o.on("--json") { json = true } }.parse!(argv)
+      pdf = argv.shift
+      raise ArgumentError, "usage: acroforge fields <pdf> [--json]" unless pdf
+      raise Errno::ENOENT, pdf unless File.exist?(pdf)
+
+      fields = AcroForge::Engine.new(pdf).fields
+
+      if json
+        puts JSON.pretty_generate(fields)
+      elsif fields.empty?
+        puts "No AcroForm fields found in #{pdf}."
+      else
+        print_fields_table(fields)
+      end
+      EXIT_OK
+    end
+
+    def print_fields_table(fields)
+      headers = ["NAME", "TYPE", "ALTERNATE NAME"]
+      rows = fields.map { |f| [f[:name].to_s, f[:type].to_s, format_alternate_name(f[:alternate_name])] }
+      widths = headers.each_with_index.map { |h, i| ([h] + rows.map { |r| r[i] }).map(&:length).max }
+      ([headers] + rows).each do |row|
+        puts row.each_with_index.map { |cell, i| cell.ljust(widths[i]) }.join("  ").rstrip
+      end
+    end
+
+    def format_alternate_name(alt)
+      case alt
+      when nil then "—"
+      when Hash then "{#{alt.map { |k, v| "#{k}: #{v.inspect}" }.join(", ")}}"
+      else alt.to_s
+      end
     end
 
     def cmd_schema(argv)
@@ -233,20 +271,26 @@ module AcroForge
 
     def cmd_compile(argv)
       schema_path = nil
+      out = nil
+      overwrite = false
       OptionParser.new do |opts|
         opts.on("--schema PATH") { |v| schema_path = v }
+        opts.on("--out PATH", "Write the normalized PDF to PATH") { |v| out = v }
+        opts.on("--overwrite", "Write the normalized PDF back over the input PDF in place") { overwrite = true }
       end.parse!(argv)
       pdf = argv.shift
       raise ArgumentError, "missing <pdf> argument" if pdf.nil?
+      raise ArgumentError, "--out and --overwrite are mutually exclusive" if out && overwrite
       raise Errno::ENOENT, pdf unless File.exist?(pdf)
 
       schema = schema_path ? AcroForge::Schema.load(schema_path) : {}
-      require "tmpdir"
-      Dir.mktmpdir do |tmp|
-        engine = AcroForge::Engine.new(pdf, schema: schema, normalized_dir: tmp)
-        result = engine.compile!
-        puts "Mapped: #{result[:mapped].size}, Unmapped: #{result[:unmapped].size}"
-      end
+      out ||= pdf if overwrite
+
+      engine = AcroForge::Engine.new(pdf, schema: schema, normalized_dir: out ? File.dirname(out) : nil)
+      result = engine.compile!(normalized_out: out)
+      puts "Mapped: #{result[:mapped].size}, Unmapped: #{result[:unmapped].size}"
+      where = overwrite ? "#{engine.normalized_path} (in place)" : engine.normalized_path
+      puts "Wrote #{where}: normalized template."
       EXIT_OK
     end
 
@@ -335,7 +379,7 @@ module AcroForge
       require "tmpdir"
       Dir.mktmpdir do |tmp|
         engine = AcroForge::Engine.new(pdf, normalized_dir: tmp)
-        silenced(verbose: verbose) { engine.compile! }
+        silenced(verbose: verbose) { engine.compile!(announce_output: false) }
 
         schema = AcroForge::Schema.infer(pdf, engine: engine)
         AcroForge::Schema.dump(schema, schema_out)

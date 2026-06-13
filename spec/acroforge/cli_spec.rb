@@ -4,10 +4,13 @@ require "spec_helper"
 require "tmpdir"
 require "stringio"
 require "yaml"
+require "json"
+require "fileutils"
 require "acroforge/cli"
 
 RSpec.describe AcroForge::CLI do
   let(:garbage_fixture) { File.expand_path("../fixtures/garbage_named.pdf", __dir__) }
+  let(:no_acroform_fixture) { File.expand_path("../fixtures/no_acroform.pdf", __dir__) }
 
   around do |example|
     Dir.mktmpdir do |tmp|
@@ -108,6 +111,103 @@ RSpec.describe AcroForge::CLI do
 
     merged = AcroForge::Schema.load(schema_path)
     expect(merged.keys).to include(:full_name, :email)
+  end
+
+  describe "fields" do
+    it "prints a table of fields and returns 0" do
+      code, out, _ = capture { described_class.run(["fields", garbage_fixture]) }
+      expect(code).to eq(0)
+      expect(out).to match(/NAME\s+TYPE\s+ALTERNATE NAME/)
+      expect(out).to include("page0_field6").and include("text")
+    end
+
+    it "prints JSON with --json" do
+      code, out, _ = capture { described_class.run(["fields", garbage_fixture, "--json"]) }
+      expect(code).to eq(0)
+      parsed = JSON.parse(out)
+      expect(parsed).to be_an(Array)
+      expect(parsed.first.keys).to contain_exactly("name", "type", "alternate_name")
+    end
+
+    it "decodes option-map alternate names as nested JSON objects" do
+      compiled = File.join(@tmp, "compiled.pdf")
+      engine = AcroForge::Engine.new(garbage_fixture, normalized_dir: @tmp)
+      capture { engine.compile! }
+      FileUtils.cp(engine.normalized_path, compiled)
+
+      _, out, _ = capture { described_class.run(["fields", compiled, "--json"]) }
+      gender = JSON.parse(out).find { |f| f["name"] == "gender" }
+      expect(gender["alternate_name"]).to be_a(Hash)
+    end
+
+    it "reports a PDF without AcroForm fields and returns 0" do
+      code, out, _ = capture { described_class.run(["fields", no_acroform_fixture]) }
+      expect(code).to eq(0)
+      expect(out).to match(/no acroform fields/i)
+    end
+
+    it "missing file returns exit 1" do
+      code, _, err = capture { described_class.run(["fields", "/nonexistent.pdf"]) }
+      expect(code).to eq(1)
+      expect(err).not_to be_empty
+    end
+
+    it "missing argument returns exit 1 with usage" do
+      code, _, err = capture { described_class.run(["fields"]) }
+      expect(code).to eq(1)
+      expect(err).to match(/usage/i)
+    end
+  end
+
+  describe "compile" do
+    it "writes the normalized PDF next to the input by default and prints counts" do
+      input = File.join(@tmp, "garbage.pdf")
+      FileUtils.cp(garbage_fixture, input)
+      code, out, _ = capture { described_class.run(["compile", input]) }
+      expect(code).to eq(0)
+      expect(out).to match(/Mapped:\s*\d+/)
+
+      normalized = File.join(@tmp, "garbage_normalized.pdf")
+      expect(File.exist?(normalized)).to be true
+      expect(out).to include(normalized)
+    end
+
+    it "writes the normalized PDF to --out when given" do
+      out_pdf = File.join(@tmp, "normalized.pdf")
+      code, _, _ = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf]) }
+      expect(code).to eq(0)
+      expect(File.exist?(out_pdf)).to be true
+      expect(HexaPDF::Document.open(out_pdf).acro_form).not_to be_nil
+    end
+
+    it "writes into a nested existing directory" do
+      nested = File.join(@tmp, "out")
+      Dir.mkdir(nested)
+      out_pdf = File.join(nested, "normalized.pdf")
+      code, _, _ = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf]) }
+      expect(code).to eq(0)
+      expect(File.exist?(out_pdf)).to be true
+    end
+
+    it "overwrites the input PDF in place with --overwrite and stays valid" do
+      input = File.join(@tmp, "garbage.pdf")
+      FileUtils.cp(garbage_fixture, input)
+      code, out, _ = capture { described_class.run(["compile", input, "--overwrite"]) }
+      expect(code).to eq(0)
+      expect(out).to include("in place")
+      expect(File.exist?(File.join(@tmp, "garbage_normalized.pdf"))).to be false
+
+      reopened = AcroForge::Engine.new(input)
+      expect(reopened.fields).not_to be_empty
+      expect(reopened.field_names).to include("gender")
+    end
+
+    it "rejects --out and --overwrite together as a usage error" do
+      out_pdf = File.join(@tmp, "x.pdf")
+      code, _, err = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf, "--overwrite"]) }
+      expect(code).to eq(1)
+      expect(err).to match(/mutually exclusive/)
+    end
   end
 
   it "relabel apply rewrites field[:T] in place against a mapping file" do
