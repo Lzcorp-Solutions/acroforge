@@ -42,6 +42,15 @@ result = engine.compile!
 AcroForge::Engine.new("form_normalized.pdf").fill!(payload, "filled.pdf")
 ```
 
+By default `compile!` writes the normalized PDF next to the template as `<base>_normalized.pdf` (or into the `normalized_dir:` you passed the constructor). Pass `normalized_out:` to send it to an exact path instead; `engine.normalized_path` then reflects where it landed.
+
+```ruby
+engine.compile!(normalized_out: "build/form_clean.pdf")
+engine.normalized_path # => "build/form_clean.pdf"
+```
+
+Passing `normalized_out:` equal to the template path overwrites the template in place. This is safe: the result is staged through a sibling temp file and moved into position only once the write completes, so the document HexaPDF still holds open is never written over mid-read.
+
 #### Preserve cascade
 
 `compile!` keeps an existing field name verbatim — skipping the spatial heuristic for that field — when any of these match (highest priority first):

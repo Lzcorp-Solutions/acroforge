@@ -114,7 +114,8 @@ module AcroForge
     # every field, rename each to its proposed semantic key in place, and
     # persist the result to @normalized_path. The returned hash is what the
     # Relabeler and Schema.infer consume.
-    def compile!
+    def compile!(normalized_out: nil, announce_output: true)
+      @normalized_path = normalized_out if normalized_out
       puts ">> Compiling template: #{@template_path}"
       form = source_doc.acro_form(create: true)
 
@@ -458,9 +459,9 @@ module AcroForge
         end
       end
 
-      source_doc.write(@normalized_path, optimize: true)
+      write_normalized!
       puts ">> Compilation Complete. #{mapped_count} fields mapped."
-      puts ">> Clean template saved to: #{@normalized_path}\n\n"
+      puts ">> Clean template saved to: #{@normalized_path}\n\n" if announce_output
 
       {
         mapped: @mapped_fields,
@@ -603,6 +604,26 @@ module AcroForge
     end
 
     private
+
+    # Writing back over the template HexaPDF still holds open can corrupt or
+    # truncate it (the writer reads lazily-loaded objects from that same handle).
+    # When the target is the source, stage to a sibling temp file and atomically
+    # move it into place once the write has fully completed.
+    def write_normalized!
+      same_file = File.expand_path(@normalized_path) == File.expand_path(@template_path)
+      unless same_file
+        source_doc.write(@normalized_path, optimize: true)
+        return
+      end
+
+      require "tmpdir"
+      require "fileutils"
+      tmp = File.join(File.dirname(@normalized_path), ".#{File.basename(@normalized_path)}.#{Process.pid}.tmp")
+      source_doc.write(tmp, optimize: true)
+      FileUtils.mv(tmp, @normalized_path)
+    ensure
+      FileUtils.rm_f(tmp) if tmp && File.exist?(tmp)
+    end
 
     # compile! repurposes /TU to persist button/choice option maps as JSON
     # (see fill!'s decode). Surface those as hashes; real tooltips stay strings.

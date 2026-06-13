@@ -5,6 +5,7 @@
 ### Added
 
 - **`acroforge fields <pdf>` CLI subcommand** — lists every AcroForm field's name, type, and alternate name as an aligned table, or as JSON with `--json`. Decoded options maps render inline (table) or as nested objects (JSON). A PDF without an AcroForm prints a notice and still exits `0`.
+- **Configurable normalized output path for `compile!`** — `Engine#compile!` now accepts a `normalized_out:` kwarg to write the normalized PDF to an exact path; omitting it keeps the existing constructor-derived `<base>_normalized.pdf` location, byte-for-byte. Passing `normalized_out:` equal to the template path overwrites it in place safely (staged through a temp file, then moved). The `acroforge compile` CLI now persists the normalized template by default — next to the input as `<base>_normalized.pdf` — and gains a `--out PATH` flag to send it to an explicit path plus an `--overwrite` flag to rewrite the input PDF in place (`--out` and `--overwrite` are mutually exclusive).
 
 ### Changed
 

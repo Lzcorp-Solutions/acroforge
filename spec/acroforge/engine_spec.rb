@@ -28,6 +28,50 @@ RSpec.describe AcroForge::Engine do
   let(:no_acroform_fixture) { File.expand_path("../fixtures/no_acroform.pdf", __dir__) }
   let(:garbage_fixture) { File.expand_path("../fixtures/garbage_named.pdf", __dir__) }
 
+  describe "#compile! normalized output path" do
+    it "writes to the constructor-derived path by default" do
+      engine = described_class.new(semantic_fixture, normalized_dir: @tmp)
+      silence_stdout { engine.compile! }
+
+      expect(engine.normalized_path).to eq(File.join(@tmp, "semantic_named_normalized.pdf"))
+      expect(File.exist?(engine.normalized_path)).to be true
+    end
+
+    it "writes to an explicit path passed to compile! via normalized_out:" do
+      out = File.join(@tmp, "custom", "clean.pdf")
+      Dir.mkdir(File.dirname(out))
+      engine = described_class.new(semantic_fixture, normalized_dir: @tmp)
+      silence_stdout { engine.compile!(normalized_out: out) }
+
+      expect(engine.normalized_path).to eq(out)
+      expect(File.exist?(out)).to be true
+      expect(File.exist?(File.join(@tmp, "semantic_named_normalized.pdf"))).to be false
+    end
+
+    it "leaves normalized_path consistent for a follow-up Engine pointed at it" do
+      out = File.join(@tmp, "clean.pdf")
+      engine = described_class.new(garbage_fixture, normalized_dir: @tmp)
+      silence_stdout { engine.compile!(normalized_out: out) }
+
+      follow_up = described_class.new(engine.normalized_path, normalized_dir: @tmp)
+      expect(follow_up.field_names).to include("gender")
+    end
+
+    it "safely overwrites the template in place when normalized_out: equals it" do
+      require "fileutils"
+      target = File.join(@tmp, "in_place.pdf")
+      FileUtils.cp(garbage_fixture, target)
+
+      engine = described_class.new(target, normalized_dir: @tmp)
+      silence_stdout { engine.compile!(normalized_out: target) }
+
+      expect(engine.normalized_path).to eq(target)
+      reopened = described_class.new(target, normalized_dir: @tmp)
+      expect(reopened.fields).not_to be_empty
+      expect(reopened.field_names).to include("gender")
+    end
+  end
+
   describe "#compile! with an explicit schema" do
     it "canonicalizes labels into schema keys" do
       schema = {

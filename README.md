@@ -60,7 +60,7 @@ acroforge fields <pdf>           [--json]
 acroforge schema infer <pdf>     [--out schema.yml] [--sections a,b,c]
 acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite]
 acroforge relabel apply <pdf> <mapping.yml>
-acroforge compile <pdf>          [--schema schema.yml]
+acroforge compile <pdf>          [--schema schema.yml] [--out normalized.pdf | --overwrite]
 acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml]
 acroforge version
 acroforge help

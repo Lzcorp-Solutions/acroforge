@@ -159,6 +159,57 @@ RSpec.describe AcroForge::CLI do
     end
   end
 
+  describe "compile" do
+    it "writes the normalized PDF next to the input by default and prints counts" do
+      input = File.join(@tmp, "garbage.pdf")
+      FileUtils.cp(garbage_fixture, input)
+      code, out, _ = capture { described_class.run(["compile", input]) }
+      expect(code).to eq(0)
+      expect(out).to match(/Mapped:\s*\d+/)
+
+      normalized = File.join(@tmp, "garbage_normalized.pdf")
+      expect(File.exist?(normalized)).to be true
+      expect(out).to include(normalized)
+    end
+
+    it "writes the normalized PDF to --out when given" do
+      out_pdf = File.join(@tmp, "normalized.pdf")
+      code, _, _ = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf]) }
+      expect(code).to eq(0)
+      expect(File.exist?(out_pdf)).to be true
+      expect(HexaPDF::Document.open(out_pdf).acro_form).not_to be_nil
+    end
+
+    it "writes into a nested existing directory" do
+      nested = File.join(@tmp, "out")
+      Dir.mkdir(nested)
+      out_pdf = File.join(nested, "normalized.pdf")
+      code, _, _ = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf]) }
+      expect(code).to eq(0)
+      expect(File.exist?(out_pdf)).to be true
+    end
+
+    it "overwrites the input PDF in place with --overwrite and stays valid" do
+      input = File.join(@tmp, "garbage.pdf")
+      FileUtils.cp(garbage_fixture, input)
+      code, out, _ = capture { described_class.run(["compile", input, "--overwrite"]) }
+      expect(code).to eq(0)
+      expect(out).to include("in place")
+      expect(File.exist?(File.join(@tmp, "garbage_normalized.pdf"))).to be false
+
+      reopened = AcroForge::Engine.new(input)
+      expect(reopened.fields).not_to be_empty
+      expect(reopened.field_names).to include("gender")
+    end
+
+    it "rejects --out and --overwrite together as a usage error" do
+      out_pdf = File.join(@tmp, "x.pdf")
+      code, _, err = capture { described_class.run(["compile", garbage_fixture, "--out", out_pdf, "--overwrite"]) }
+      expect(code).to eq(1)
+      expect(err).to match(/mutually exclusive/)
+    end
+  end
+
   it "relabel apply rewrites field[:T] in place against a mapping file" do
     out_pdf = File.join(@tmp, "garbage.pdf")
     require "fileutils"

@@ -54,7 +54,7 @@ module AcroForge
           acroforge schema merge <mapping.yml> [--schema schema.yml] [--out schema.yml]
           acroforge relabel propose <pdf>  [--out mapping.yml] [--schema schema.yml] [--merge|--overwrite] [-v]
           acroforge relabel apply <pdf> <mapping.yml> [--annotate[=PATH]] [-v]
-          acroforge compile <pdf>          [--schema schema.yml]
+          acroforge compile <pdf>          [--schema schema.yml] [--out normalized.pdf | --overwrite]
           acroforge bootstrap <pdf>        [--schema-out s.yml] [--mapping-out m.yml] [-v]
           acroforge annotate <pdf>         [--mapping mapping.yml] [--out annotated.pdf]
           acroforge prepare <pdf>          [--out prepared.pdf] [--schema schema.yml]
@@ -271,20 +271,26 @@ module AcroForge
 
     def cmd_compile(argv)
       schema_path = nil
+      out = nil
+      overwrite = false
       OptionParser.new do |opts|
         opts.on("--schema PATH") { |v| schema_path = v }
+        opts.on("--out PATH", "Write the normalized PDF to PATH") { |v| out = v }
+        opts.on("--overwrite", "Write the normalized PDF back over the input PDF in place") { overwrite = true }
       end.parse!(argv)
       pdf = argv.shift
       raise ArgumentError, "missing <pdf> argument" if pdf.nil?
+      raise ArgumentError, "--out and --overwrite are mutually exclusive" if out && overwrite
       raise Errno::ENOENT, pdf unless File.exist?(pdf)
 
       schema = schema_path ? AcroForge::Schema.load(schema_path) : {}
-      require "tmpdir"
-      Dir.mktmpdir do |tmp|
-        engine = AcroForge::Engine.new(pdf, schema: schema, normalized_dir: tmp)
-        result = engine.compile!
-        puts "Mapped: #{result[:mapped].size}, Unmapped: #{result[:unmapped].size}"
-      end
+      out ||= pdf if overwrite
+
+      engine = AcroForge::Engine.new(pdf, schema: schema, normalized_dir: out ? File.dirname(out) : nil)
+      result = engine.compile!(normalized_out: out)
+      puts "Mapped: #{result[:mapped].size}, Unmapped: #{result[:unmapped].size}"
+      where = overwrite ? "#{engine.normalized_path} (in place)" : engine.normalized_path
+      puts "Wrote #{where}: normalized template."
       EXIT_OK
     end
 
@@ -373,7 +379,7 @@ module AcroForge
       require "tmpdir"
       Dir.mktmpdir do |tmp|
         engine = AcroForge::Engine.new(pdf, normalized_dir: tmp)
-        silenced(verbose: verbose) { engine.compile! }
+        silenced(verbose: verbose) { engine.compile!(announce_output: false) }
 
         schema = AcroForge::Schema.infer(pdf, engine: engine)
         AcroForge::Schema.dump(schema, schema_out)
